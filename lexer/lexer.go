@@ -316,6 +316,43 @@ func Lexer(in string) (*[]Token, error) {
 		return false
 	}
 
+	// longLevel reports the level of the long bracket at pos: 0 for [[,
+	// 1 for [=[, 2 for [==[ and so on. It returns -1 if pos isn't at one.
+	longLevel := func() int {
+		if peek(0) != '[' {
+			return -1
+		}
+		lvl := 0
+		for peek(1+lvl) == '=' {
+			lvl++
+		}
+		if peek(1+lvl) != '[' {
+			return -1
+		}
+		return lvl
+	}
+
+	// skipLong moves pos past a long bracket like [==[ ... ]==]. Only a
+	// closing bracket of the same level ends it. It returns false if the
+	// input runs out first.
+	skipLong := func(lvl int) bool {
+		pos += lvl + 2
+		for pos < len(in) {
+			if peek(0) == ']' {
+				count := 0
+				for peek(1+count) == '=' {
+					count++
+				}
+				if count == lvl && peek(1+count) == ']' {
+					pos += lvl + 2
+					return true
+				}
+			}
+			pos++
+		}
+		return false
+	}
+
 	for pos < len(in) {
 	WhiteSpaceChecker:
 		for {
@@ -323,59 +360,27 @@ func Lexer(in string) (*[]Token, error) {
 			case peek(0) == ' ', peek(0) == '\n', peek(0) == '\t', peek(0) == '\r':
 				pos++
 
-			case peek(0) == '-' && peek(1) == '-': // no idea starting here
+			case peek(0) == '-' && peek(1) == '-':
 				pos += 2
-				if peek(0) == '[' && (peek(1) == '[' || peek(1) == '=') {
-					pos++
-					pos++
-					long := false
-					lvl := 0
-					if peek(0) == '[' {
-						for {
-							if peek(1+lvl) == '=' {
-								lvl++
-							} else {
-								break
-							}
-						}
-						if peek(1+lvl) == '[' {
-							long = true
-						}
+				if lvl := longLevel(); lvl >= 0 {
+					// --[[ long comment ]], which can span lines
+					if !skipLong(lvl) {
+						err = errors.New("unterminated long comment")
 					}
-					if long {
-						pos = pos + lvl + 2
-						for {
-							c := peek(0)
-							if c == 0 {
-								err = errors.New("unknown")
-							}
-							if c == ']' {
-								count := 0
-								for {
-									if peek(1+count) == '=' {
-										count++
-									} else {
-										break
-									}
-								}
-								if count == lvl && peek(1+count) == ']' {
-									pos = pos + lvl + 2
-									break
-								}
-							}
-							pos++
-						}
-					} else {
-						break
+				} else {
+					// short comment: runs to the end of the line. This also
+					// covers --[ and --[= that aren't a full long bracket.
+					for pos < len(in) && peek(0) != '\n' {
+						pos++
 					}
-				} //ending here, this was hand-written pseudocode translation...
+				}
 
 			default:
 				break WhiteSpaceChecker
 			}
 		} // goddamn weird goland formatting
 		// trailing whitespace can leave us at the end with nothing left to lex
-		if peek(0) == '\x03' {
+		if pos >= len(in) {
 			break
 		}
 		start := pos
@@ -413,55 +418,45 @@ func Lexer(in string) (*[]Token, error) {
 					}
 				}
 			}
-			if peek(0) == '0' {
-				if peek(1) == 'x' || peek(1) == 'X' {
-					pos++
-					pos++
-					for {
-						c := peek(0)
-						if (isDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) || c == '_' {
-							pos++
-						} else {
-							break
-						}
+			if peek(0) == '0' && (peek(1) == 'x' || peek(1) == 'X') {
+				pos++
+				pos++
+				for {
+					c := peek(0)
+					if (isDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) || c == '_' {
+						pos++
+					} else {
+						break
 					}
 				}
-				if peek(1) == 'b' || peek(1) == 'B' {
-					pos++
-					pos++
-					for {
-						c := peek(0)
-						if c == '0' || c == '1' || c == '_' {
-							pos++
-						} else {
-							break
-						}
+			} else if peek(0) == '0' && (peek(1) == 'b' || peek(1) == 'B') {
+				pos++
+				pos++
+				for {
+					c := peek(0)
+					if c == '0' || c == '1' || c == '_' {
+						pos++
+					} else {
+						break
 					}
 				}
 			} else {
-			OuterSwitch:
-				switch {
-				case peek(0) == '.' && peek(1) != '.':
+				// decimal: whole part, then an optional fraction, then an
+				// optional exponent, e.g. 10, 3.14, .5, 2.5e-3. Either part
+				// can be missing (".5" has no whole part, "1e6" no fraction).
+				cont()
+				// a second dot means .. (concat), as in 1..2, so leave it
+				if peek(0) == '.' && peek(1) != '.' {
 					pos++
 					cont()
-					break OuterSwitch
-				case peek(0) == 'e' || peek(0) == 'E':
+				}
+				if peek(0) == 'e' || peek(0) == 'E' {
 					pos++
 					if peek(0) == '+' || peek(0) == '-' {
 						pos++
 					}
-					for {
-						if isDigit(peek(0)) {
-							pos++
-						} else {
-							break OuterSwitch
-						}
-					}
-				default:
 					cont()
-					break OuterSwitch
 				}
-
 			}
 			tokens = append(tokens, Token{
 				Kind: TokenNumber,
@@ -470,17 +465,30 @@ func Lexer(in string) (*[]Token, error) {
 
 		case cur == '"', cur == '\'':
 			pos++
-			for {
-				if peek(0) != '"' && peek(0) != '\x03' {
+			// a raw newline ends the string early, which is an error
+			for pos < len(in) && peek(0) != cur && peek(0) != '\n' {
+				// skip whatever follows a backslash, so \" and \' don't end
+				// the string, \\ doesn't escape the quote after it, and
+				// \<newline> carries the string onto the next line
+				if peek(0) == '\\' && pos+1 < len(in) {
 					pos++
-				} else {
-					break
 				}
+				pos++
 			}
-			if peek(0) == '"' {
+			if peek(0) == cur {
 				pos++
 			} else {
 				err = errors.New("unterminated string")
+			}
+			tokens = append(tokens, Token{
+				Kind: TokenString,
+				Text: in[start:pos],
+			})
+
+		case cur == '[' && longLevel() >= 0:
+			// [[long string]] or [==[long string]==], no escapes inside
+			if !skipLong(longLevel()) {
+				err = errors.New("unterminated long string")
 			}
 			tokens = append(tokens, Token{
 				Kind: TokenString,
@@ -518,7 +526,14 @@ func Lexer(in string) (*[]Token, error) {
 				pos++
 				break
 			}
-			err = errors.New("operator unknown")
+			// not something Luau knows. Keep it as an INVALID token and step
+			// past it, otherwise we'd look at the same byte forever.
+			err = fmt.Errorf("unknown character %q", in[pos])
+			tokens = append(tokens, Token{
+				Kind: TokenInvalid,
+				Text: in[pos : pos+1],
+			})
+			pos++
 		}
 	}
 	return &tokens, err

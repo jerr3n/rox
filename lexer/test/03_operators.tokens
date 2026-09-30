@@ -1,0 +1,125 @@
++
+-
+*
+/
+//
+%
+^
+#
+..
+==
+~=
+<
+<=
+>
+>=
+=
++=
+-=
+*=
+/=
+//=
+%=
+^=
+..=
+(
+)
+[
+]
+{
+}
+,
+;
+.
+:
+::
+...
+->
+?
+|
+&
+IDENT a
+==
+IDENT b
+IDENT a
+=
+IDENT b
+IDENT a
+<=
+IDENT b
+IDENT a
+>=
+IDENT b
+IDENT a
+~=
+IDENT b
+IDENT a
+<
+IDENT b
+IDENT a
+>
+IDENT b
+IDENT a
+..
+IDENT b
+IDENT a
+...
+IDENT b
+IDENT a
+.
+IDENT b
+.
+IDENT c
+IDENT a
+:
+IDENT b
+IDENT a
+::
+IDENT b
+IDENT x
+//=
+NUMBER 2
+IDENT x
+..=
+IDENT y
+IDENT x
+-=
+NUMBER 1
+IDENT a
+-
+IDENT b
+-
+IDENT a
+#
+IDENT t
+IDENT f
+(
+)
+->
+nil
+IDENT t
+[
+NUMBER 1
+]
+IDENT t
+[
+NUMBER 2
+]
+{
+NUMBER 1
+,
+NUMBER 2
+;
+NUMBER 3
+}
+IDENT a
+[
+IDENT b
+[
+NUMBER 1
+]
+]
+IDENT x
+=
+-
+IDENT y

@@ -1,21 +1,34 @@
 package lexer
 
 import (
-	"slices"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
 
-// tok is shorthand for building an expected token.
-func tok(kind TokenKind, text string) Token {
-	return Token{Kind: kind, Text: text}
-}
+// Each test lexes one file in test/. For checkTokens, test/NAME.luau is
+// compared against test/NAME.tokens, which lists the expected tokens one
+// per line. For checkError (the err_*.luau files) there is no .tokens file;
+// Lexer only has to return an error.
+//
+// go test ./lexer -update rewrites the .tokens files from the lexer's
+// current output. Only do that once the lexer is right, and read the diff.
+var update = flag.Bool("update", false, "rewrite test/*.tokens from the lexer's output")
 
 // lex runs Lexer on in, but turns a panic or a hang into a normal test
 // failure instead of crashing or freezing the whole test run.
-func lex(t *testing.T, in string) []Token {
+func lex(t *testing.T, in string) ([]Token, error) {
 	t.Helper()
-	done := make(chan []Token, 1)
+	type result struct {
+		toks []Token
+		err  error
+	}
+	done := make(chan result, 1)
 	crashed := make(chan any, 1)
 	go func() {
 		defer func() {
@@ -23,135 +36,149 @@ func lex(t *testing.T, in string) []Token {
 				crashed <- r
 			}
 		}()
-		done <- Lexer(in)
+		toks, err := Lexer(in)
+		var list []Token
+		if toks != nil {
+			list = *toks
+		}
+		done <- result{list, err}
 	}()
 	select {
-	case toks := <-done:
-		return toks
+	case r := <-done:
+		return r.toks, r.err
 	case r := <-crashed:
-		t.Fatalf("Lexer(%q) panicked: %v", in, r)
+		t.Fatalf("Lexer panicked: %v", r)
 	case <-time.After(time.Second):
-		t.Fatalf("Lexer(%q) didn't finish within 1s (stuck in a loop?)", in)
+		t.Fatalf("Lexer didn't finish within 1s (stuck in a loop?)")
 	}
-	return nil
+	return nil, nil
 }
 
-// withoutEOF drops a trailing EOF token, so the tables below only list
-// the "real" tokens. TestEOF checks the EOF token on its own.
-func withoutEOF(toks []Token) []Token {
-	if len(toks) > 0 && toks[len(toks)-1].Kind == TokenEOF {
-		return toks[:len(toks)-1]
+// formatToken writes a token the way .tokens files do:
+//
+//	local          keywords, operators and punctuation are just their text
+//	IDENT x        identifiers and numbers are the kind, then the raw text
+//	NUMBER 0xFF
+//	STRING "'hi'"  strings are Go-quoted so newlines and quotes stay on one line
+func formatToken(tk Token) string {
+	switch tk.Kind {
+	case TokenIdent, TokenNumber:
+		return fmt.Sprintf("%s %s", tk.Kind, tk.Text)
+	case TokenString, TokenInvalid:
+		return fmt.Sprintf("%s %s", tk.Kind, strconv.Quote(tk.Text))
 	}
-	return toks
+	if tk.Text == tk.Kind.String() {
+		return tk.Text
+	}
+	// Kind and text disagree, e.g. an OpAdd whose text is "-". Show both
+	// so the mismatch is visible in the diff.
+	return fmt.Sprintf("%s %q", tk.Kind, tk.Text)
 }
 
-type lexCase struct {
-	name string
-	in   string
-	want []Token
+func formatTokens(toks []Token) []string {
+	lines := []string{}
+	for _, tk := range toks {
+		if tk.Kind == TokenEOF {
+			continue
+		}
+		lines = append(lines, formatToken(tk))
+	}
+	return lines
 }
 
-func runCases(t *testing.T, cases []lexCase) {
+func readLines(t *testing.T, path string) []string {
 	t.Helper()
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := withoutEOF(lex(t, tc.in))
-			if !slices.Equal(got, tc.want) {
-				t.Errorf("Lexer(%q)\n got: %v\nwant: %v", tc.in, got, tc.want)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := strings.TrimRight(string(data), "\n")
+	if text == "" {
+		return []string{}
+	}
+	return strings.Split(text, "\n")
+}
+
+// diffLines reports the first line where got and want differ, with a few
+// lines of context, rather than dumping both token lists in full.
+func diffLines(got, want []string) string {
+	i := 0
+	for i < len(got) && i < len(want) && got[i] == want[i] {
+		i++
+	}
+	if i == len(got) && i == len(want) {
+		return ""
+	}
+	window := func(lines []string) string {
+		var b strings.Builder
+		for j := max(0, i-3); j < min(len(lines), i+4); j++ {
+			marker := "  "
+			if j == i {
+				marker = "> "
 			}
-		})
+			fmt.Fprintf(&b, "\t%s%4d  %s\n", marker, j+1, lines[j])
+		}
+		if i >= len(lines) {
+			b.WriteString("\t>       (end of tokens)\n")
+		}
+		return b.String()
+	}
+	return fmt.Sprintf("first difference at token %d (got %d tokens, want %d)\n got:\n%s want:\n%s",
+		i+1, len(got), len(want), window(got), window(want))
+}
+
+func readSource(t *testing.T, name string) string {
+	t.Helper()
+	src, err := os.ReadFile(filepath.Join("test", name+".luau"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(src)
+}
+
+// checkTokens lexes test/NAME.luau and compares it against test/NAME.tokens.
+func checkTokens(t *testing.T, name string) {
+	t.Helper()
+	toks, err := lex(t, readSource(t, name))
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	got := formatTokens(toks)
+	tokensPath := filepath.Join("test", name+".tokens")
+	if *update {
+		out := strings.Join(got, "\n") + "\n"
+		if err := os.WriteFile(tokensPath, []byte(out), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	if diff := diffLines(got, readLines(t, tokensPath)); diff != "" {
+		t.Error(diff)
 	}
 }
 
-func TestIdentifiers(t *testing.T) {
-	runCases(t, []lexCase{
-		{"single letter", "x", []Token{tok(TokenIdent, "x")}},
-		{"word", "sum", []Token{tok(TokenIdent, "sum")}},
-		{"leading underscore", "_private", []Token{tok(TokenIdent, "_private")}},
-		{"just underscore", "_", []Token{tok(TokenIdent, "_")}},
-		{"digits after first char", "a1b2", []Token{tok(TokenIdent, "a1b2")}},
-		{"keyword prefix", "localValue", []Token{tok(TokenIdent, "localValue")}},
-		{"keyword with suffix", "end_", []Token{tok(TokenIdent, "end_")}},
-		{"keyword case matters", "Local", []Token{tok(TokenIdent, "Local")}},
-	})
-}
-
-func TestKeywords(t *testing.T) {
-	for word, kind := range keywords {
-		t.Run(word, func(t *testing.T) {
-			got := withoutEOF(lex(t, word))
-			want := []Token{tok(kind, word)}
-			if !slices.Equal(got, want) {
-				t.Errorf("Lexer(%q)\n got: %v\nwant: %v", word, got, want)
-			}
-		})
+// checkError lexes test/NAME.luau and only requires that Lexer returns an error.
+func checkError(t *testing.T, name string) {
+	t.Helper()
+	toks, err := lex(t, readSource(t, name))
+	if err == nil {
+		t.Errorf("want an error, got none; tokens:\n\t%s",
+			strings.Join(formatTokens(toks), "\n\t"))
 	}
 }
 
-// type, export and continue are keywords only in some positions, so the
-// lexer should leave them as plain identifiers and let the parser decide.
-func TestContextualKeywords(t *testing.T) {
-	runCases(t, []lexCase{
-		{"type", "type", []Token{tok(TokenIdent, "type")}},
-		{"export", "export", []Token{tok(TokenIdent, "export")}},
-		{"continue", "continue", []Token{tok(TokenIdent, "continue")}},
-	})
-}
+func TestKeywords(t *testing.T)    { checkTokens(t, "01_keywords") }
+func TestIdentifiers(t *testing.T) { checkTokens(t, "02_identifiers") }
+func TestOperators(t *testing.T)   { checkTokens(t, "03_operators") }
+func TestNumbers(t *testing.T)     { checkTokens(t, "04_numbers") }
+func TestStrings(t *testing.T)     { checkTokens(t, "05_strings") }
+func TestComments(t *testing.T)    { checkTokens(t, "06_comments") }
+func TestProgram(t *testing.T)     { checkTokens(t, "07_program") }
 
-func TestWhitespace(t *testing.T) {
-	runCases(t, []lexCase{
-		{"empty input", "", nil},
-		{"only spaces", "   ", nil},
-		{"leading spaces", "   x", []Token{tok(TokenIdent, "x")}},
-		{"trailing spaces", "x   ", []Token{tok(TokenIdent, "x")}},
-		{"two words", "local x", []Token{tok(KeywordLocal, "local"), tok(TokenIdent, "x")}},
-		{"tabs and newlines", "local\tx\nend", []Token{
-			tok(KeywordLocal, "local"), tok(TokenIdent, "x"), tok(KeywordEnd, "end"),
-		}},
-		{"windows newline", "a\r\nb", []Token{tok(TokenIdent, "a"), tok(TokenIdent, "b")}},
-	})
-}
-
-func TestOperators(t *testing.T) {
-	runCases(t, []lexCase{
-		{"assign", "=", []Token{tok(OpAssign, "=")}},
-		{"greater than", ">", []Token{tok(OpGt, ">")}},
-		{"parens", "()", []Token{tok(PunctLParen, "("), tok(PunctRParen, ")")}},
-		{"equals is one token", "==", []Token{tok(OpEq, "==")}},
-		{"greater or equal", ">=", []Token{tok(OpGe, ">=")}},
-		{"compound add", "+=", []Token{tok(OpCompoundAdd, "+=")}},
-		{"floor div", "//", []Token{tok(OpFloor, "//")}},
-		{"compound floor", "//=", []Token{tok(OpCompoundFloor, "//=")}},
-		{"concat", "..", []Token{tok(OpConcat, "..")}},
-		{"ellipsis", "...", []Token{tok(PunctEllipsis, "...")}},
-		{"arrow", "->", []Token{tok(PunctArrow, "->")}},
-		{"double colon", "::", []Token{tok(PunctDoubleColon, "::")}},
-		{"no spaces", "a=b", []Token{tok(TokenIdent, "a"), tok(OpAssign, "="), tok(TokenIdent, "b")}},
-	})
-}
-
-// A byte the lexer doesn't understand should become one INVALID token,
-// and lexing should carry on after it.
-func TestInvalid(t *testing.T) {
-	runCases(t, []lexCase{
-		{"lone at sign", "@", []Token{tok(TokenInvalid, "@")}},
-		{"keeps going after", "x @ y", []Token{
-			tok(TokenIdent, "x"), tok(TokenInvalid, "@"), tok(TokenIdent, "y"),
-		}},
-	})
-}
-
-func TestEOF(t *testing.T) {
-	for _, in := range []string{"", "x", "local x", "x   "} {
-		t.Run(in, func(t *testing.T) {
-			toks := lex(t, in)
-			if len(toks) == 0 {
-				t.Fatalf("Lexer(%q) returned no tokens, want at least EOF", in)
-			}
-			last := toks[len(toks)-1]
-			if last != tok(TokenEOF, "") {
-				t.Errorf("Lexer(%q) last token = %v, want EOF with empty text", in, last)
-			}
-		})
-	}
-}
+func TestErrUnterminatedString(t *testing.T)      { checkError(t, "err_unterminated_string") }
+func TestErrUnterminatedSingleQuote(t *testing.T) { checkError(t, "err_unterminated_single_quote") }
+func TestErrNewlineInString(t *testing.T)         { checkError(t, "err_newline_in_string") }
+func TestErrUnterminatedLongString(t *testing.T)  { checkError(t, "err_unterminated_long_string") }
+func TestErrLongStringWrongLevel(t *testing.T)    { checkError(t, "err_long_string_wrong_level") }
+func TestErrUnterminatedLongComment(t *testing.T) { checkError(t, "err_unterminated_long_comment") }
+func TestErrUnknownCharacter(t *testing.T)        { checkError(t, "err_unknown_character") }

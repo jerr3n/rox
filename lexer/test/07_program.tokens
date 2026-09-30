@@ -1,0 +1,315 @@
+IDENT export
+IDENT type
+IDENT Item
+=
+{
+IDENT name
+:
+IDENT string
+,
+IDENT count
+:
+IDENT number
+,
+IDENT tags
+:
+{
+IDENT string
+}
+?
+,
+}
+IDENT type
+IDENT Id
+=
+IDENT string
+|
+IDENT number
+IDENT type
+IDENT Both
+=
+IDENT Item
+&
+{
+IDENT id
+:
+IDENT Id
+}
+local
+IDENT Inventory
+=
+{
+}
+IDENT Inventory
+.
+IDENT __index
+=
+IDENT Inventory
+function
+IDENT Inventory
+.
+IDENT new
+(
+IDENT capacity
+:
+IDENT number
+?
+)
+local
+IDENT self
+=
+IDENT setmetatable
+(
+{
+}
+,
+IDENT Inventory
+)
+IDENT self
+.
+IDENT items
+=
+{
+}
+::
+{
+IDENT Item
+}
+IDENT self
+.
+IDENT capacity
+=
+IDENT capacity
+or
+NUMBER 10
+return
+IDENT self
+end
+function
+IDENT Inventory
+:
+IDENT add
+(
+IDENT name
+:
+IDENT string
+,
+IDENT count
+:
+IDENT number
+)
+:
+IDENT boolean
+if
+#
+IDENT self
+.
+IDENT items
+>=
+IDENT self
+.
+IDENT capacity
+then
+return
+false
+elseif
+IDENT count
+<=
+NUMBER 0
+then
+IDENT error
+(
+STRING "\"count must be positive: \""
+..
+IDENT tostring
+(
+IDENT count
+)
+)
+end
+for
+IDENT _
+,
+IDENT item
+in
+IDENT self
+.
+IDENT items
+do
+if
+IDENT item
+.
+IDENT name
+==
+IDENT name
+then
+IDENT item
+.
+IDENT count
++=
+IDENT count
+return
+true
+end
+end
+IDENT table
+.
+IDENT insert
+(
+IDENT self
+.
+IDENT items
+,
+{
+IDENT name
+=
+IDENT name
+,
+IDENT count
+=
+IDENT count
+}
+)
+return
+true
+end
+local
+function
+IDENT first
+<
+IDENT T
+>
+(
+IDENT list
+:
+{
+IDENT T
+}
+)
+:
+IDENT T
+?
+return
+IDENT list
+[
+NUMBER 1
+]
+end
+local
+function
+IDENT total
+(
+...
+:
+IDENT Item
+)
+:
+IDENT number
+local
+IDENT sum
+=
+NUMBER 0
+for
+IDENT i
+=
+NUMBER 1
+,
+IDENT select
+(
+STRING "\"#\""
+,
+...
+)
+do
+local
+IDENT item
+=
+IDENT select
+(
+IDENT i
+,
+...
+)
+IDENT sum
++=
+IDENT item
+.
+IDENT count
+end
+return
+IDENT sum
+end
+local
+IDENT callback
+:
+(
+IDENT string
+,
+IDENT number
+)
+->
+(
+)
+=
+function
+(
+IDENT msg
+,
+IDENT code
+)
+local
+IDENT ok
+=
+IDENT code
+~=
+NUMBER 0
+and
+not
+(
+IDENT code
+>
+NUMBER 255
+)
+repeat
+IDENT code
+//=
+NUMBER 2
+until
+IDENT code
+<
+NUMBER 1
+while
+true
+do
+break
+end
+IDENT print
+(
+IDENT msg
+,
+IDENT ok
+,
+NUMBER 2
+^
+NUMBER 8
+%
+NUMBER 3
+,
+-
+IDENT code
+,
+nil
+,
+IDENT first
+,
+IDENT total
+)
+end
+IDENT callback
+(
+STRING "'done'"
+,
+NUMBER 0x_FF
+)
+return
+IDENT Inventory

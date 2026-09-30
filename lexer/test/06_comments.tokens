@@ -1,0 +1,17 @@
+local
+IDENT a
+=
+NUMBER 1
+local
+IDENT c
+=
+NUMBER 3
+local
+IDENT d
+=
+NUMBER 4
+IDENT e
+=
+NUMBER 5
++
+NUMBER 6

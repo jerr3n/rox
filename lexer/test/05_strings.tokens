@@ -1,0 +1,29 @@
+STRING "\"hello\""
+STRING "'hello'"
+STRING "\"\""
+STRING "''"
+STRING "\"it's\""
+STRING "'say \"hi\"'"
+STRING "\"a \\\"quoted\\\" word\""
+STRING "'don\\'t'"
+STRING "\"back\\\\slash\""
+STRING "\"tab\\tnewline\\n\""
+STRING "\"\\x41\\u{42}\\067\""
+STRING "\"ends in backslash \\\\\""
+STRING "'x'"
+STRING "\"line one\\\nline two\""
+STRING "[[long string]]"
+STRING "[[]]"
+STRING "[==[has ]] and ]=] inside]==]"
+STRING "[[first\nsecond]]"
+IDENT x
+=
+STRING "[[a]]"
+..
+STRING "\"b\""
+..
+STRING "'c'"
+IDENT t
+[
+STRING "[[key]]"
+]
