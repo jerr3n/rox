@@ -1,6 +1,7 @@
 package lexer
 
 import (
+	"errors"
 	"fmt"
 	"unicode"
 )
@@ -271,6 +272,7 @@ type Pos struct {
 
 type Token struct {
 	Kind TokenKind
+	// TODO: make `Text` *string
 	Text string // the exact source text, e.g. "sum", "10", "\"hi\"", "+="
 	//Pos  Pos
 }
@@ -295,15 +297,23 @@ func isLetter(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
 }
 
-func Lexer(in string) {
+func Lexer(in string) (*[]Token, error) {
 	pos := 0
 	tokens := []Token{}
+	var err error = nil
+	readLongBracket := func 
 	for pos <= len(in) {
 	WhiteSpaceChecker:
 		for {
-			switch rune(in[pos]) {
-			case ' ', '\n', '\t':
+			switch{
+			case in[pos]==' ', in[pos]=='\n', in[pos]=='\t',in[pos]=='\r':
 				pos++
+			case in[pos]=='-'&&in[pos+1]=='-':
+				pos+=2
+				if in[pos]=='[' && (in[pos+1]=='['||in[pos+1]=='=') {
+					
+				}
+				
 			default:
 				break WhiteSpaceChecker
 			}
@@ -362,41 +372,38 @@ func Lexer(in string) {
 			})
 
 		default:
-			
-			//case cur == '>':
-			//	pos++
-			//	if rune(in[pos]) == '=' {
-			//		pos++
-			//		tokens = append(tokens, Token{
-			//			Kind: OpGe,
-			//		})
-			//	} else {
-			//		tokens = append(tokens, Token{
-			//			Kind: OpGt,
-			//		})
-			//	}
-
+			next := rune(in[pos+1])
+			triple := string([]rune{cur, next, rune(in[pos+2])})
+			op, exists := operators[triple]
+			if exists {
+				tokens = append(tokens, Token{
+					Kind: op,
+					Text: triple,
+				})
+				pos += 3
+				break
+			}
+			double := string([]rune{cur, next}) //see what i did there
+			op, exists = operators[double]
+			if exists {
+				tokens = append(tokens, Token{
+					Kind: op,
+					Text: double,
+				})
+				pos += 2
+				break
+			}
+			op, exists = operators[string(cur)]
+			if exists {
+				tokens = append(tokens, Token{
+					Kind: op,
+					Text: string(cur),
+				})
+				pos++
+				break
+			}
+			err = errors.New("operator unknown")
 		}
-		//switch rune(in[pos]) {
-		//case 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '_':
-		//	pos++
-		//	word := in[start:pos]
-		//	enum, ok := keywords[word]
-		//	if ok {
-		//		tokens = append(tokens, Token{
-		//			Kind: enum,
-		//			Text: word,
-		//			//Pos:  Pos{},
-		//		})
-		//	}
-		//case '1', '2', '3', '4', '5', '6', '7', '8', '9', '0':
-		//DigitChecker:
-		//	for {
-		//		if unicode.IsDigit(rune(in[pos])) {
-		//			pos++
-		//		}
-		//
-		//	}
-		//}
 	}
+	return &tokens, err
 }
