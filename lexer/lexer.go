@@ -301,30 +301,90 @@ func Lexer(in string) (*[]Token, error) {
 	pos := 0
 	tokens := []Token{}
 	var err error = nil
-	readLongBracket := func 
-	for pos <= len(in) {
+
+	peek := func(n int) rune {
+		if pos+n >= len(in) {
+			return '\x03'
+		}
+		return rune(in[pos+n])
+	}
+
+	isDigit := func(c rune) bool {
+		if c >= '0' && c <= '9' {
+			return true
+		}
+		return false
+	}
+
+	for pos < len(in) {
 	WhiteSpaceChecker:
 		for {
-			switch{
-			case in[pos]==' ', in[pos]=='\n', in[pos]=='\t',in[pos]=='\r':
+			switch {
+			case peek(0) == ' ', peek(0) == '\n', peek(0) == '\t', peek(0) == '\r':
 				pos++
-			case in[pos]=='-'&&in[pos+1]=='-':
-				pos+=2
-				if in[pos]=='[' && (in[pos+1]=='['||in[pos+1]=='=') {
-					
-				}
-				
+
+			case peek(0) == '-' && peek(1) == '-': // no idea starting here
+				pos += 2
+				if peek(0) == '[' && (peek(1) == '[' || peek(1) == '=') {
+					pos++
+					pos++
+					long := false
+					lvl := 0
+					if peek(0) == '[' {
+						for {
+							if peek(1+lvl) == '=' {
+								lvl++
+							} else {
+								break
+							}
+						}
+						if peek(1+lvl) == '[' {
+							long = true
+						}
+					}
+					if long {
+						pos = pos + lvl + 2
+						for {
+							c := peek(0)
+							if c == 0 {
+								err = errors.New("unknown")
+							}
+							if c == ']' {
+								count := 0
+								for {
+									if peek(1+count) == '=' {
+										count++
+									} else {
+										break
+									}
+								}
+								if count == lvl && peek(1+count) == ']' {
+									pos = pos + lvl + 2
+									break
+								}
+							}
+							pos++
+						}
+					} else {
+						break
+					}
+				} //ending here, this was hand-written pseudocode translation...
+
 			default:
 				break WhiteSpaceChecker
 			}
 		} // goddamn weird goland formatting
+		// trailing whitespace can leave us at the end with nothing left to lex
+		if peek(0) == '\x03' {
+			break
+		}
 		start := pos
-		cur := rune(in[pos])
+		cur := peek(0)
 
 		switch {
 		case unicode.IsLetter(cur), cur == '_':
 			for {
-				if unicode.IsLetter(rune(in[pos])) || unicode.IsDigit(rune(in[pos])) || rune(in[pos]) == '_' {
+				if unicode.IsLetter(peek(0)) || isDigit(peek(0)) || peek(0) == '_' {
 					pos++
 				} else {
 					break
@@ -343,37 +403,93 @@ func Lexer(in string) (*[]Token, error) {
 					Text: word,
 				})
 			}
-		case unicode.IsDigit(cur):
-			for {
-				if unicode.IsDigit(rune(in[pos])) {
-					pos++
-				} else {
-					break
+		case isDigit(cur), cur == '.' && isDigit(peek(1)):
+			cont := func() {
+				for {
+					if isDigit(peek(0)) || peek(0) == '_' {
+						pos++
+					} else {
+						break
+					}
 				}
+			}
+			if peek(0) == '0' {
+				if peek(1) == 'x' || peek(1) == 'X' {
+					pos++
+					pos++
+					for {
+						c := peek(0)
+						if (isDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) || c == '_' {
+							pos++
+						} else {
+							break
+						}
+					}
+				}
+				if peek(1) == 'b' || peek(1) == 'B' {
+					pos++
+					pos++
+					for {
+						c := peek(0)
+						if c == '0' || c == '1' || c == '_' {
+							pos++
+						} else {
+							break
+						}
+					}
+				}
+			} else {
+			OuterSwitch:
+				switch {
+				case peek(0) == '.' && peek(1) != '.':
+					pos++
+					cont()
+					break OuterSwitch
+				case peek(0) == 'e' || peek(0) == 'E':
+					pos++
+					if peek(0) == '+' || peek(0) == '-' {
+						pos++
+					}
+					for {
+						if isDigit(peek(0)) {
+							pos++
+						} else {
+							break OuterSwitch
+						}
+					}
+				default:
+					cont()
+					break OuterSwitch
+				}
+
 			}
 			tokens = append(tokens, Token{
 				Kind: TokenNumber,
 				Text: in[start:pos],
 			})
 
-		case cur == '"':
+		case cur == '"', cur == '\'':
 			pos++
 			for {
-				if rune(in[pos]) != '"' {
+				if peek(0) != '"' && peek(0) != '\x03' {
 					pos++
 				} else {
 					break
 				}
 			}
-			pos++
+			if peek(0) == '"' {
+				pos++
+			} else {
+				err = errors.New("unterminated string")
+			}
 			tokens = append(tokens, Token{
 				Kind: TokenString,
 				Text: in[start:pos],
 			})
 
 		default:
-			next := rune(in[pos+1])
-			triple := string([]rune{cur, next, rune(in[pos+2])})
+			next := peek(1)
+			triple := string([]rune{cur, next, peek(2)})
 			op, exists := operators[triple]
 			if exists {
 				tokens = append(tokens, Token{
