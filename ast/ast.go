@@ -1,5 +1,7 @@
 package ast
 
+import "github.com/jerr3n/rox/generic"
+
 // ---------------------------------------------------------------------------
 // Positions
 // ---------------------------------------------------------------------------
@@ -11,12 +13,12 @@ type Pos int
 
 // Span is embedded in every node to give it Pos() and End().
 type Span struct {
-	Start Pos // first byte of the node
-	Stop  Pos // one past the last byte
+	Start generic.Pos // first byte of the node
+	Stop  generic.Pos // one past the last byte
 }
 
-func (s Span) Pos() Pos { return s.Start }
-func (s Span) End() Pos { return s.Stop }
+func (s Span) Pos() generic.Pos { return generic.Pos(s.Start) }
+func (s Span) End() generic.Pos { return generic.Pos(s.Stop) }
 
 // ---------------------------------------------------------------------------
 // Node categories
@@ -24,8 +26,8 @@ func (s Span) End() Pos { return s.Stop }
 
 // Node is anything in the tree.
 type Node interface {
-	Pos() Pos
-	End() Pos
+	Pos() generic.Pos
+	End() generic.Pos
 }
 
 // Expr is anything that produces a value.
@@ -81,22 +83,22 @@ const (
 // ---------------------------------------------------------------------------
 
 type (
-	// nil
+	// Nil nil
 	Nil struct{ Span }
 
-	// true / false
+	// Bool true / false
 	Bool struct {
 		Span
 		Value bool
 	}
 
-	// 42, 0xFF, 1_000, .5, 1e10
+	// Number 42, 0xFF, 1_000, .5, 1e10
 	Number struct {
 		Span
 		Raw string // source text; parse to float64 when you need the value
 	}
 
-	// "hi", 'hi', [[hi]]
+	// String "hi", 'hi', [[hi]]
 	String struct {
 		Span
 		Value string // escapes already decoded

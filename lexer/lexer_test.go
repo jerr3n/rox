@@ -182,3 +182,60 @@ func TestErrUnterminatedLongString(t *testing.T)  { checkError(t, "err_untermina
 func TestErrLongStringWrongLevel(t *testing.T)    { checkError(t, "err_long_string_wrong_level") }
 func TestErrUnterminatedLongComment(t *testing.T) { checkError(t, "err_unterminated_long_comment") }
 func TestErrUnknownCharacter(t *testing.T)        { checkError(t, "err_unknown_character") }
+
+// TestPositions checks that every token in every test file points back at
+// its own text, i.e. in[Pos:End] == Text.
+func TestPositions(t *testing.T) {
+	paths, err := filepath.Glob(filepath.Join("test", "*.luau"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range paths {
+		name := strings.TrimSuffix(filepath.Base(path), ".luau")
+		t.Run(name, func(t *testing.T) {
+			src := readSource(t, name)
+			toks, _ := lex(t, src)
+			for i, tk := range toks {
+				if tk.Pos < 0 || tk.End < tk.Pos || int(tk.End) > len(src) {
+					t.Fatalf("token %d %s: bad range [%d:%d]", i+1, formatToken(tk), tk.Pos, tk.End)
+				}
+				if got := src[tk.Pos:tk.End]; got != tk.Text {
+					t.Fatalf("token %d %s: in[%d:%d] is %q", i+1, formatToken(tk), tk.Pos, tk.End, got)
+				}
+			}
+		})
+	}
+}
+
+func TestNewlineBefore(t *testing.T) {
+	tests := []struct {
+		in   string
+		want []bool // NewlineBefore for each token, in order
+	}{
+		{"f(x)", []bool{false, false, false, false}},
+		{"f\n(x)", []bool{false, true, false, false}},
+		{"\nf", []bool{true}},
+		{"f -- comment\n(x)", []bool{false, true, false, false}},
+		{"f --[[ long\ncomment ]] (x)", []bool{false, true, false, false}},
+		{"f --[[ one line ]] (x)", []bool{false, false, false, false}},
+		// a newline inside a token belongs to that token, not the next one
+		{"f [[a\nb]] (x)", []bool{false, false, false, false, false}},
+	}
+	for _, tt := range tests {
+		toks, err := lex(t, tt.in)
+		if err != nil {
+			t.Errorf("%q: unexpected error: %v", tt.in, err)
+			continue
+		}
+		got := []bool{}
+		for _, tk := range toks {
+			if tk.Kind == TokenEOF {
+				continue
+			}
+			got = append(got, tk.NewlineBefore)
+		}
+		if fmt.Sprint(got) != fmt.Sprint(tt.want) {
+			t.Errorf("%q: NewlineBefore is %v, want %v", tt.in, got, tt.want)
+		}
+	}
+}

@@ -3,7 +3,10 @@ package lexer
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"unicode"
+
+	"github.com/jerr3n/rox/generic"
 )
 
 // TokenKind says what sort of token something is. Every family
@@ -103,9 +106,9 @@ var compounds = []TokenKind{
 	OpLen,
 }
 
-// names maps each kind to how it's written, for String() and error messages.
+// Names maps each kind to how it's written, for String() and error messages.
 // The [Kind]: "text" syntax sets entries by index, so order doesn't matter.
-var names = [...]string{
+var Names = [...]string{
 	TokenInvalid: "INVALID",
 	TokenEOF:     "EOF",
 	TokenIdent:   "IDENT",
@@ -182,8 +185,8 @@ var names = [...]string{
 
 // String lets fmt print a kind as its text, e.g. fmt.Println(KeywordLocal) prints "local".
 func (k TokenKind) String() string {
-	if k >= 0 && int(k) < len(names) && names[k] != "" {
-		return names[k]
+	if k >= 0 && int(k) < len(Names) && Names[k] != "" {
+		return Names[k]
 	}
 	return fmt.Sprintf("TokenKind(%d)", int(k))
 }
@@ -264,17 +267,19 @@ var operators = map[string]TokenKind{
 	"&": PunctAmp,
 }
 
-type Pos struct {
-	Offset int
-	//Line   int // i dont care for you
-	Column int
-}
+// Pos is a byte offset into the source, the same as ast.Pos.
+type Pos int
 
 type Token struct {
 	Kind TokenKind
 	// TODO: make `Text` *string
-	Text string // the exact source text, e.g. "sum", "10", "\"hi\"", "+="
-	//Pos  Pos
+	Text string      // the exact source text, e.g. "sum", "10", "\"hi\"", "+="
+	Pos  generic.Pos // first byte of the token
+	End  generic.Pos // one past the last byte, so in[Pos:End] == Text
+	// NewlineBefore is true if a newline was skipped between the previous
+	// token and this one, including one inside a comment. The parser needs
+	// it for the f\n(x) ambiguity.
+	NewlineBefore bool
 }
 
 /*
@@ -293,9 +298,6 @@ end
 ^^^
 END
 */
-func isLetter(c byte) bool {
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
-}
 
 func Lexer(in string) (*[]Token, error) {
 	pos := 0
@@ -354,6 +356,7 @@ func Lexer(in string) (*[]Token, error) {
 	}
 
 	for pos < len(in) {
+		skipStart := pos
 	WhiteSpaceChecker:
 		for {
 			switch {
@@ -535,6 +538,20 @@ func Lexer(in string) (*[]Token, error) {
 			})
 			pos++
 		}
+
+		// every case above appends exactly one token, so fill in where it is
+		// here instead of in each case
+		tk := &tokens[len(tokens)-1]
+		tk.Pos = generic.Pos(start)
+		tk.End = generic.Pos(pos)
+		tk.NewlineBefore = strings.IndexByte(in[skipStart:start], '\n') >= 0
 	}
+	// EOF sits at the very end of the source, so the parser always has a
+	// token to look at, even when the input stops mid-statement
+	tokens = append(tokens, Token{
+		Kind: TokenEOF,
+		Pos:  generic.Pos(len(in)),
+		End:  generic.Pos(len(in)),
+	})
 	return &tokens, err
 }
