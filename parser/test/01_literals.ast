@@ -1,0 +1,58 @@
+Block
+  Local
+    names: a
+    values:
+      Nil
+  Local
+    names: b, c
+    values:
+      Bool true
+      Bool false
+  Local
+    names: d
+    values:
+      Number 42
+  Local
+    names: e
+    values:
+      Number 0xFF
+  Local
+    names: f
+    values:
+      Number 1_000
+  Local
+    names: g
+    values:
+      Number .5
+  Local
+    names: h
+    values:
+      Number 1e10
+  Local
+    names: i
+    values:
+      String "double"
+  Local
+    names: j
+    values:
+      String "single"
+  Local
+    names: k
+    values:
+      String "long string"
+  Local
+    names: l
+    values:
+      String "with ]] inside"
+  Local
+    names: m
+    values:
+      String "tab\there, newline\nthere, quote \" and \\ backslash"
+  Local
+    names: n
+    values:
+      String "ABC"
+  Local
+    names: o
+    values:
+      Vararg

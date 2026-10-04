@@ -1,0 +1,60 @@
+Block
+  Local
+    names: empty
+    values:
+      Table
+  Local
+    names: list
+    values:
+      Table
+        positional
+          Number 1
+        positional
+          Number 2
+        positional
+          Number 3
+  Local
+    names: named
+    values:
+      Table
+        named x =
+          Number 1
+        named y =
+          Number 2
+  Local
+    names: keyed
+    values:
+      Table
+        keyed
+          Number 1
+          String "one"
+        keyed
+          String "two"
+          Number 2
+  Local
+    names: mixed
+    values:
+      Table
+        positional
+          Number 1
+        named x =
+          Number 2
+        keyed
+          Ident y
+          Number 3
+        positional
+          Number 4
+  Local
+    names: nested
+    values:
+      Table
+        named inner =
+          Table
+            named deep =
+              Table
+  Local
+    names: value
+    values:
+      Table
+        positional
+          Ident x

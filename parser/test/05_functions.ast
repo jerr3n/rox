@@ -1,0 +1,51 @@
+Block
+  FuncDecl greet
+    params: (name)
+    Block
+      CallStmt
+        Call
+          Ident print
+          args:
+            Binary ..
+              String "hi "
+              Ident name
+  FuncDecl a.b.c
+    params: (x, y)
+    Block
+  FuncDecl obj:method
+    params: (...)
+    Block
+      Return
+        Ident self
+        Vararg
+  LocalFunc helper
+    params: ()
+    Block
+  Local
+    names: add
+    values:
+      Func
+        params: (a, b)
+        Block
+          Return
+            Binary +
+              Ident a
+              Ident b
+  Local
+    names: apply
+    values:
+      Func
+        params: (f, ...)
+        Block
+          Return
+            Call
+              Ident f
+              args:
+                Vararg
+  CallStmt
+    Call
+      Ident print
+      args:
+        Func
+          params: ()
+          Block

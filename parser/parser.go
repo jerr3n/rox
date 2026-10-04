@@ -939,7 +939,7 @@ func Parser(in []lexer.Token) (*ast.Block, error) {
 		if err != nil {
 			return nil, err
 		}
-		var path []*ast.Ident
+		path := []*ast.Ident{first}
 		for {
 			if accept(lexer.PunctDot) {
 				target, err := parseName()

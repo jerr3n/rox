@@ -1,0 +1,86 @@
+Block
+  Local
+    names: a
+    values:
+      Field .x
+        Ident t
+  Local
+    names: b
+    values:
+      Field .y
+        Field .x
+          Ident t
+  Local
+    names: c
+    values:
+      Index
+        Ident t
+        Number 1
+  Local
+    names: d
+    values:
+      Field .name
+        Index
+          Field .list
+            Ident t
+          Binary +
+            Ident i
+            Number 1
+  CallStmt
+    Call
+      Ident print
+  CallStmt
+    Call
+      Ident print
+      args:
+        Number 1
+        String "two"
+        Binary +
+          Ident x
+          Number 3
+  CallStmt
+    Call
+      Ident print
+      args:
+        Call
+          Ident f
+          args:
+            Call
+              Ident g
+              args:
+                Ident x
+  CallStmt
+    MethodCall :method
+      Ident obj
+      args:
+        Number 1
+  CallStmt
+    MethodCall :method
+      Field .child
+        Ident obj
+  CallStmt
+    Call
+      Ident require
+      args:
+        String "module"
+  CallStmt
+    Call
+      Ident setup
+      args:
+        Table
+          named debug =
+            Bool true
+  Local
+    names: e
+    values:
+      Call
+        Paren
+          Ident f
+        args:
+          Ident x
+  Local
+    names: f
+    values:
+      MethodCall :upper
+        Paren
+          String "s"

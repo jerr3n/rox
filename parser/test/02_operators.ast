@@ -1,0 +1,115 @@
+Block
+  Local
+    names: a
+    values:
+      Binary +
+        Number 1
+        Binary *
+          Number 2
+          Number 3
+  Local
+    names: b
+    values:
+      Binary +
+        Binary *
+          Number 1
+          Number 2
+        Number 3
+  Local
+    names: c
+    values:
+      Binary -
+        Binary -
+          Ident a
+          Ident b
+        Ident c
+  Local
+    names: d
+    values:
+      Binary ^
+        Number 2
+        Binary ^
+          Number 3
+          Number 2
+  Local
+    names: e
+    values:
+      Binary ..
+        String "a"
+        Binary ..
+          String "b"
+          String "c"
+  Local
+    names: f
+    values:
+      Unary -
+        Binary ^
+          Ident x
+          Number 2
+  Local
+    names: g
+    values:
+      Binary +
+        Unary -
+          Ident x
+        Number 1
+  Local
+    names: h
+    values:
+      Binary ==
+        Unary not
+          Ident a
+        Ident b
+  Local
+    names: i
+    values:
+      Binary +
+        Unary #
+          Ident t
+        Number 1
+  Local
+    names: j
+    values:
+      Binary ^
+        Number 2
+        Unary -
+          Number 3
+  Local
+    names: k
+    values:
+      Binary *
+        Paren
+          Binary +
+            Number 1
+            Number 2
+        Number 3
+  Local
+    names: l
+    values:
+      Binary or
+        Ident a
+        Binary and
+          Ident b
+          Ident c
+  Local
+    names: m
+    values:
+      Binary or
+        Binary and
+          Binary <
+            Ident x
+            Number 10
+          Binary >=
+            Ident y
+            Number 0
+        Binary ~=
+          Ident z
+          Nil
+  Local
+    names: n
+    values:
+      Binary %
+        Binary //
+          Number 7
+          Number 2
+        Number 3

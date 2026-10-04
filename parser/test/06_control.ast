@@ -1,0 +1,96 @@
+Block
+  Do
+    Block
+      Local
+        names: scoped
+        values:
+          Number 1
+  While
+    Binary <
+      Ident i
+      Number 10
+    Block
+      CompoundAssign +=
+        Ident i
+        Number 1
+  Repeat
+    Block
+      CompoundAssign -=
+        Ident i
+        Number 1
+    until:
+      Binary ==
+        Ident i
+        Number 0
+  If
+    Ident a
+    Block
+      CallStmt
+        Call
+          Ident x
+  If
+    Ident a
+    Block
+      CallStmt
+        Call
+          Ident x
+    ElseIf
+      Ident b
+      Block
+        CallStmt
+          Call
+            Ident y
+    ElseIf
+      Ident c
+      Block
+        CallStmt
+          Call
+            Ident z
+    Else
+      Block
+        CallStmt
+          Call
+            Ident w
+  NumericFor i
+    start:
+      Number 1
+    stop:
+      Number 10
+    Block
+      CallStmt
+        Call
+          Ident print
+          args:
+            Ident i
+  NumericFor i
+    start:
+      Number 10
+    stop:
+      Number 1
+    step:
+      Unary -
+        Number 1
+    Block
+  GenericFor k, v
+    in:
+      Call
+        Ident pairs
+        args:
+          Ident t
+    Block
+      If
+        Ident v
+        Block
+          Continue
+      Break
+  Local
+    names: pick
+    values:
+      IfExpr
+        Ident a
+        Number 1
+        ElseIf
+          Ident b
+          Number 2
+        Else
+          Number 3

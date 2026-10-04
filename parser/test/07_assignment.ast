@@ -1,0 +1,77 @@
+Block
+  Assign
+    targets:
+      Ident x
+    values:
+      Number 1
+  Assign
+    targets:
+      Ident a
+      Ident b
+    values:
+      Number 1
+      Number 2
+  Assign
+    targets:
+      Field .x
+        Ident t
+    values:
+      Number 1
+  Assign
+    targets:
+      Index
+        Ident t
+        Ident k
+    values:
+      Ident v
+  Assign
+    targets:
+      Index
+        Field .list
+          Ident t
+        Number 1
+      Field .y
+        Ident other
+    values:
+      Call
+        Ident f
+  CompoundAssign +=
+    Ident x
+    Number 1
+  CompoundAssign -=
+    Ident x
+    Number 1
+  CompoundAssign *=
+    Ident x
+    Number 2
+  CompoundAssign /=
+    Ident x
+    Number 2
+  CompoundAssign //=
+    Ident x
+    Number 2
+  CompoundAssign %=
+    Ident x
+    Number 2
+  CompoundAssign ^=
+    Ident x
+    Number 2
+  CompoundAssign ..=
+    Ident s
+    String "!"
+  Assign
+    targets:
+      Ident continue
+    values:
+      Number 5
+  Local
+    names: y
+    values:
+      Number 1
+  Local
+    names: z
+    values:
+      Number 2
+  Return
+    Ident x
+    Ident y
