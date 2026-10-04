@@ -55,10 +55,31 @@ var unaryOps = map[lexer.TokenKind]ast.UnaryOp{
 	lexer.OpLen:      ast.OpLen,
 }
 
+var compoundOps = map[lexer.TokenKind]ast.BinaryOp{
+	lexer.OpCompoundAdd:    ast.OpAdd,
+	lexer.OpCompoundSub:    ast.OpSub,
+	lexer.OpCompoundMul:    ast.OpMul,
+	lexer.OpCompoundDiv:    ast.OpDiv,
+	lexer.OpCompoundFloor:  ast.OpFloorDiv,
+	lexer.OpCompoundMod:    ast.OpMod,
+	lexer.OpCompoundPow:    ast.OpPow,
+	lexer.OpCompoundConcat: ast.OpConcat,
+}
+
 const unaryPriority = 8
+
+func isAssignable(target ast.Expr) bool {
+	switch target.(type) {
+	case *ast.Ident, *ast.Field, *ast.Index:
+		return true
+	default:
+		return false
+	}
+}
 
 func Parser(in []lexer.Token) {
 	pos := 0
+	// prev TODO: generic.Pos() prev
 	prev := 0
 	var parseLocal func() (ast.Stmt, error)
 	var parseIf func() (ast.Stmt, error)
@@ -77,6 +98,9 @@ func Parser(in []lexer.Token) {
 
 	peek := func() lexer.Token {
 		return in[pos]
+	}
+	peekAt := func(n int) lexer.Token {
+		return in[pos+n]
 	}
 	advance := func() lexer.Token {
 		tok := in[pos]
@@ -924,6 +948,257 @@ func Parser(in []lexer.Token) {
 			},
 			Name: &name,
 			Body: body,
+		}, nil
+	}
+	parseFuncBody := func() (ast.Stmt, error) {
+		open, err := expect(lexer.PunctLParen)
+		vararg := false
+		var params []*ast.Binding
+		if peek().Kind != lexer.PunctRParen {
+			for {
+				if accept(lexer.PunctEllipsis) {
+					vararg = true
+					break
+				}
+				target, err := parseBinding()
+				if err != nil {
+					return nil, err
+				}
+				params = append(params, target)
+				if !accept(lexer.PunctComma) {
+					break
+				}
+			}
+		}
+		_, err = expect(lexer.PunctRParen)
+		if err != nil {
+			return nil, err
+		}
+		if peek().Kind == lexer.PunctColon {
+			return nil, errors.New("type support not yet implemented")
+		}
+		body, err := parseBlock()
+		if err != nil {
+			return nil, err
+		}
+		finish, err := expect(lexer.KeywordEnd)
+		if err != nil {
+			return nil, err
+		}
+		return &ast.FuncBody{
+			Span: ast.Span{
+				Start: open.Pos,
+				Stop:  finish.End,
+			},
+			Params: params,
+			Vararg: vararg,
+			Body:   body,
+		}, nil
+	}
+	parseExprStatement := func() (ast.Stmt, error) {
+		first, err := parseSuffixed()
+		if err != nil {
+			return nil, err
+		}
+		tok := peek()
+		val, ok := first.(*ast.Ident)
+		which, exists := compoundOps[tok.Kind]
+		if ok && val.Name == "continue" && tok.Kind != lexer.OpAssign && tok.Kind != lexer.PunctComma && !exists {
+			return &ast.Continue{Span: first.Span}, nil
+		}
+		if tok.Kind == lexer.OpAssign || tok.Kind == lexer.PunctComma {
+			var targets []ast.Expr = []ast.Expr{first}
+			for {
+				if accept(lexer.PunctComma) {
+					target, err := parseSuffixed()
+					if err != nil {
+						return nil, err
+					}
+					targets = append(targets, target)
+				} else {
+					break
+				}
+			}
+			for _, t := range targets {
+				if !isAssignable(t) {
+					return nil, fmt.Errorf("cannot assign to <%s>", t)
+				}
+			}
+			_, err = expect(lexer.OpAssign)
+			if err != nil {
+				return nil, err
+			}
+			vals, err := parseExprList()
+			if err != nil {
+				return nil, err
+			}
+			return &ast.Assign{
+				Span: ast.Span{
+					Start: first.Pos(),
+					Stop:  generic.Pos(prev),
+				},
+				Targets: targets,
+				Values:  vals, // my coding style is so inconsistent
+			}, nil
+		}
+		if exists {
+			if !isAssignable(first) {
+				return nil, fmt.Errorf("cannot assign to <%s>", first)
+			}
+			advance()
+			value, err := parseExpr(0)
+			if err != nil {
+				return nil, err
+			}
+			return &ast.CompoundAssign{
+				Span: ast.Span{
+					Start: first.Pos(),
+					Stop:  value.End(),
+				},
+				Op:     which,
+				Target: first,
+				Value:  value,
+			}, nil
+		}
+		switch first.(type) {
+		case *ast.Call, *ast.MethodCall:
+			return &ast.CallStmt{span: first.Span, Call: first}, nil
+		default:
+			break
+		}
+		return nil, fmt.Errorf("expected a statement, got %s", first)
+	}
+	parseTable := func() (ast.Expr, error) {
+		open, err := expect(lexer.PunctLBrace)
+		if err != nil {
+			return nil, err
+		}
+		var items []*ast.TableItem
+		for {
+			if peek().Kind != lexer.PunctRBrace {
+				tok := peek()
+				var item ast.TableItem
+				if tok.Kind == lexer.PunctLBracket {
+					advance()
+					key, err := parseExpr(0)
+					if err != nil {
+						return nil, err
+					}
+					_, err = expect(lexer.PunctRBracket)
+					if err != nil {
+						return nil, err
+					}
+					_, err = expect(lexer.OpAssign)
+					if err != nil {
+						return nil, err
+					}
+					value, err := parseExpr(0)
+					if err != nil {
+						return nil, err
+					}
+					item = ast.TableItem{
+						Kind:  ast.ItemKeyed,
+						Key:   key,
+						Value: value,
+					}
+				} else if tok.Kind == lexer.TokenIdent && peekAt(1).Kind == lexer.OpAssign {
+					name, err := parseName()
+					if err != nil {
+						return nil, err
+					}
+					advance()
+					value, err := parseExpr(0)
+					if err != nil {
+						return nil, err
+					}
+					item = ast.TableItem{
+						Kind:  ast.ItemNamed,
+						Name:  name,
+						Value: value,
+					}
+				} else {
+					value, err := parseExpr(0)
+					if err != nil {
+						return nil, err
+					}
+					item = ast.TableItem{Kind: ast.ItemPositional, Value: value}
+				}
+				item.Span = ast.Span{
+					Start: tok.Pos,
+					Stop:  generic.Pos(prev),
+				}
+				items = append(items, &item)
+				if !accept(lexer.PunctComma) && !accept(lexer.PunctSemicolon) {
+					break
+				}
+			} else {
+				break
+			}
+		}
+		c, err := expect(lexer.PunctRBrace)
+		return &ast.Table{
+			Span: ast.Span{
+				Start: open.Pos,
+				Stop:  c.End,
+			},
+			Items: items,
+		}, nil
+	}
+	parseTernary := func() (ast.Expr, error) {
+		start, err := expect(lexer.KeywordIf)
+		if err != nil {
+			return nil, err
+		}
+		cond, err := parseExpr(0)
+		if err != nil {
+			return nil, err
+		}
+		then, err := parseExpr(0)
+		var elseifs []*ast.ElseIfExpr
+		for {
+			if peek().Kind != lexer.KeywordElseIf {
+				tok := advance()
+				cond, err := parseExpr(0)
+				if err != nil {
+					return nil, err
+				}
+				_, err = expect(lexer.KeywordThen)
+				if err != nil {
+					return nil, err
+				}
+				then, err := parseExpr(0)
+				if err != nil {
+					return nil, err
+				}
+				elseifs = append(elseifs, &ast.ElseIfExpr{
+					Span: ast.Span{
+						Start: tok.Pos,
+						Stop:  then.End(),
+					},
+					Cond: cond,
+					Then: then,
+				})
+			} else {
+				break
+			}
+		}
+		_, err = expect(lexer.KeywordElse)
+		if err != nil {
+			return nil, err
+		}
+		elseval, err := parseExpr(0)
+		if err != nil {
+			return nil, err
+		}
+		return &ast.IfExpr{
+			Span: ast.Span{
+				Start: start.Pos,
+				Stop:  elseval.End(),
+			},
+			Cond:    cond,
+			Then:    then,
+			ElseIfs: elseifs,
+			Else:    elseval,
 		}, nil
 	}
 }
