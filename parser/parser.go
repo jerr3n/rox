@@ -77,7 +77,7 @@ func isAssignable(target ast.Expr) bool {
 	}
 }
 
-func Parser(in []lexer.Token) {
+func Parser(in []lexer.Token) (*ast.Block, error) {
 	pos := 0
 	// prev TODO: generic.Pos() prev
 	prev := 0
@@ -95,14 +95,36 @@ func Parser(in []lexer.Token) {
 	var parseExprList func() ([]ast.Expr, error)
 	var parseBinding func() (*ast.Binding, error)
 	var parseFuncBody func() (*ast.FuncBody, error)
+	var peek func() lexer.Token
+	var peekAt func(n int) lexer.Token
+	var advance func() lexer.Token
+	var accept func(kind lexer.TokenKind) bool
+	var expect func(kind lexer.TokenKind) (*lexer.Token, error)
+	var spanOf func(tok lexer.Token) ast.Span
+	var dcodeStr func(str string) (string, error)
+	var parseName func() (*ast.Ident, error)
+	var parseLiteral func() (ast.Expr, error)
+	var parsePrimary func() (ast.Expr, error)
+	var parseArgs func() ([]ast.Expr, generic.Pos, error)
+	var parseSuffixed func() (ast.Expr, error)
+	var parseBindingList func() ([]*ast.Binding, error)
+	var blockEnd func(kind lexer.TokenKind) bool
+	var parseTable func() (ast.Expr, error)
+	var parseTernary func() (ast.Expr, error)
+	var parseExpr func(limit int) (ast.Expr, error)
+	var parseOperand func() (ast.Expr, error)
 
-	peek := func() lexer.Token {
+	peek = func() lexer.Token {
 		return in[pos]
 	}
-	peekAt := func(n int) lexer.Token {
+	peekAt = func(n int) lexer.Token {
+		// past the end, keep returning the last token, which is EOF
+		if pos+n >= len(in) {
+			return in[len(in)-1]
+		}
 		return in[pos+n]
 	}
-	advance := func() lexer.Token {
+	advance = func() lexer.Token {
 		tok := in[pos]
 		if tok.Kind != lexer.TokenEOF {
 			pos++
@@ -110,7 +132,7 @@ func Parser(in []lexer.Token) {
 		prev = int(tok.End)
 		return tok
 	}
-	accept := func(kind lexer.TokenKind) bool {
+	accept = func(kind lexer.TokenKind) bool {
 		tok := peek()
 		if tok.Kind == kind {
 			advance()
@@ -118,7 +140,7 @@ func Parser(in []lexer.Token) {
 		}
 		return false
 	}
-	expect := func(kind lexer.TokenKind) (*lexer.Token, error) {
+	expect = func(kind lexer.TokenKind) (*lexer.Token, error) {
 		tok := peek()
 		if tok.Kind != kind {
 			return nil, fmt.Errorf("expected kind %q, got %q", lexer.Names[kind], lexer.Names[tok.Kind])
@@ -126,13 +148,13 @@ func Parser(in []lexer.Token) {
 		res := advance()
 		return &res, nil
 	}
-	spanOf := func(tok lexer.Token) ast.Span {
+	spanOf = func(tok lexer.Token) ast.Span {
 		return ast.Span{
 			Start: tok.Pos,
 			Stop:  tok.End,
 		}
 	}
-	dcodeStr := func(str string) (string, error) {
+	dcodeStr = func(str string) (string, error) {
 		mut := strings.Clone(str) // the mutable one we can easily mess with
 		var out = []byte{}
 		if str[0] == '"' || str[0] == '\'' {
@@ -240,7 +262,7 @@ func Parser(in []lexer.Token) {
 		}
 		return mut, nil
 	}
-	parseName := func() (*ast.Ident, error) {
+	parseName = func() (*ast.Ident, error) {
 		tok, err := expect(lexer.TokenIdent)
 		if err != nil {
 			return nil, err
@@ -251,7 +273,7 @@ func Parser(in []lexer.Token) {
 		}
 		return &ident, nil
 	}
-	parseLiteral := func() (ast.Expr, error) {
+	parseLiteral = func() (ast.Expr, error) {
 		tok := peek()
 		advance()
 		span := spanOf(tok)
@@ -276,8 +298,6 @@ func Parser(in []lexer.Token) {
 			return nil, fmt.Errorf("expected an expression, got <%q>", tok.Text)
 		}
 	}
-	var parseExpr func(limit int) (ast.Expr, error)
-	var parseOperand func() (ast.Expr, error)
 	parseExpr = func(limit int) (ast.Expr, error) {
 		tok := peek()
 		x, exists := unaryOps[tok.Kind]
@@ -319,7 +339,7 @@ func Parser(in []lexer.Token) {
 			}
 		}
 	}
-	parsePrimary := func() (ast.Expr, error) {
+	parsePrimary = func() (ast.Expr, error) {
 		tok := peek()
 		if tok.Kind == lexer.TokenIdent {
 			advance()
@@ -342,7 +362,7 @@ func Parser(in []lexer.Token) {
 		}
 		return nil, fmt.Errorf("expected a name or (, got %q", tok.Text)
 	}
-	parseArgs := func() ([]ast.Expr, generic.Pos, error) {
+	parseArgs = func() ([]ast.Expr, generic.Pos, error) {
 		tok := peek()
 		if tok.Kind == lexer.TokenString {
 			// f"str" is f("str")
@@ -352,6 +372,14 @@ func Parser(in []lexer.Token) {
 				return nil, 0, err
 			}
 			return []ast.Expr{&ast.String{Span: spanOf(tok), Value: text}}, tok.End, nil
+		}
+		if tok.Kind == lexer.PunctLBrace {
+			// f{...} is f({...})
+			table, err := parseTable()
+			if err != nil {
+				return nil, 0, err
+			}
+			return []ast.Expr{table}, table.End(), nil
 		}
 		_, err := expect(lexer.PunctLParen)
 		if err != nil {
@@ -376,7 +404,7 @@ func Parser(in []lexer.Token) {
 		}
 		return args, closing.End, nil
 	}
-	parseSuffixed := func() (ast.Expr, error) {
+	parseSuffixed = func() (ast.Expr, error) {
 		expr, err := parsePrimary()
 		if err != nil {
 			return nil, err
@@ -426,7 +454,7 @@ func Parser(in []lexer.Token) {
 					Method: method,
 					Args:   args,
 				}
-			case lexer.PunctLParen, lexer.TokenString:
+			case lexer.PunctLParen, lexer.TokenString, lexer.PunctLBrace:
 				// f
 				// (g)()
 				// could be one call or two statements, so Luau refuses to guess
@@ -448,9 +476,32 @@ func Parser(in []lexer.Token) {
 		}
 	}
 	parseOperand = func() (ast.Expr, error) {
-		x := peek()
-		if x.Kind == lexer.TokenIdent || x.Kind == lexer.PunctLParen {
-			return parseSuffixed()
+		tok := peek()
+		var val ast.Expr
+		var err error
+		switch tok.Kind {
+		case lexer.TokenIdent, lexer.PunctLParen:
+			val, err = parseSuffixed()
+		case lexer.PunctLBrace:
+			val, err = parseTable()
+		case lexer.KeywordIf:
+			val, err = parseTernary()
+		case lexer.KeywordFunction:
+			advance()
+			body, err := parseFuncBody()
+			if err != nil {
+				return nil, err
+			}
+			val = &ast.Func{
+				Span: ast.Span{Start: tok.Pos, Stop: body.End()},
+				Body: body,
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+		if val != nil {
+			return val, nil
 		}
 		return parseLiteral()
 	}
@@ -519,16 +570,16 @@ func Parser(in []lexer.Token) {
 				Start: name.Pos(),
 				Stop:  generic.Pos(prev),
 			},
-			Name: nil,
+			Name: name,
 		}, nil
 	}
-	parseBindingList := func() ([]ast.Binding, error) {
+	parseBindingList = func() ([]*ast.Binding, error) {
 		target, err := parseBinding()
 		if err != nil {
 			return nil, err
 		}
-		names := []ast.Binding{
-			*target,
+		names := []*ast.Binding{
+			target,
 		}
 		for {
 			if accept(lexer.PunctComma) {
@@ -536,42 +587,20 @@ func Parser(in []lexer.Token) {
 				if err != nil {
 					return nil, err
 				}
-				names = append(names, *target)
+				names = append(names, target)
 			} else {
 				break
 			}
 		}
 		return names, nil
 	}
-	blockEnd := func(kind lexer.TokenKind) bool {
+	blockEnd = func(kind lexer.TokenKind) bool {
 		switch kind {
 		case lexer.KeywordEnd, lexer.KeywordElse, lexer.KeywordElseIf, lexer.KeywordUntil, lexer.TokenEOF:
 			return true
 		default:
 			return false
 		}
-	}
-	parseReturn = func() (ast.Stmt, error) {
-		start, err := expect(lexer.KeywordReturn)
-		if err != nil {
-			return nil, err
-		}
-		cur := peek()
-		vals := []ast.Expr{}
-		if !blockEnd(cur.Kind) && cur.Kind != lexer.PunctSemicolon {
-			newvals, err := parseExprList()
-			if err != nil {
-				return nil, err
-			}
-			vals = newvals
-		}
-		return &ast.Return{
-			Span: ast.Span{
-				Start: start.Pos,
-				Stop:  generic.Pos(prev),
-			},
-			Values: vals,
-		}, nil
 	}
 	parseBlock = func() (*ast.Block, error) {
 		start := peek().Pos
@@ -624,12 +653,12 @@ func Parser(in []lexer.Token) {
 			Values: vals,
 		}, nil
 	}
-	parseLocal := func() (ast.Stmt, error) {
+	parseLocal = func() (ast.Stmt, error) {
 		start, err := expect(lexer.KeywordLocal)
 		if err != nil {
 			return nil, err
 		}
-		if accept(lexer.KeywordLocal) {
+		if accept(lexer.KeywordFunction) {
 			name, err := parseName()
 			if err != nil {
 				return nil, err
@@ -667,7 +696,7 @@ func Parser(in []lexer.Token) {
 			Values: vals,
 		}, nil
 	}
-	parseDo := func() (ast.Stmt, error) {
+	parseDo = func() (ast.Stmt, error) {
 		start, err := expect(lexer.KeywordDo)
 		if err != nil {
 			return nil, err
@@ -688,7 +717,7 @@ func Parser(in []lexer.Token) {
 			Body: body,
 		}, nil
 	}
-	parseWhile := func() (ast.Stmt, error) {
+	parseWhile = func() (ast.Stmt, error) {
 		start, err := expect(lexer.KeywordWhile)
 		if err != nil {
 			return nil, err
@@ -718,7 +747,7 @@ func Parser(in []lexer.Token) {
 			Body: body,
 		}, nil
 	}
-	parseRepeat := func() (ast.Stmt, error) {
+	parseRepeat = func() (ast.Stmt, error) {
 		start, err := expect(lexer.KeywordRepeat)
 		if err != nil {
 			return nil, err
@@ -741,7 +770,7 @@ func Parser(in []lexer.Token) {
 			Cond: cond,
 		}, nil
 	}
-	parseFor := func() (ast.Stmt, error) {
+	parseFor = func() (ast.Stmt, error) {
 		start, err := expect(lexer.KeywordFor)
 		if err != nil {
 			return nil, err
@@ -763,7 +792,7 @@ func Parser(in []lexer.Token) {
 			if err != nil {
 				return nil, err
 			}
-			step := nil
+			var step ast.Expr
 			if accept(lexer.PunctComma) {
 				step, err = parseExpr(0)
 				if err != nil {
@@ -833,7 +862,7 @@ func Parser(in []lexer.Token) {
 			Body:  body,
 		}, nil
 	}
-	parseIf := func() (ast.Stmt, error) {
+	parseIf = func() (ast.Stmt, error) {
 		start, err := expect(lexer.KeywordIf)
 		if err != nil {
 			return nil, err
@@ -901,7 +930,7 @@ func Parser(in []lexer.Token) {
 			Else:    elseBlock,
 		}, nil
 	}
-	parseFunctionDecl := func() (ast.Stmt, error) {
+	parseFunctionDecl = func() (ast.Stmt, error) {
 		start, err := expect(lexer.KeywordFunction)
 		if err != nil {
 			return nil, err
@@ -950,7 +979,7 @@ func Parser(in []lexer.Token) {
 			Body: body,
 		}, nil
 	}
-	parseFuncBody := func() (ast.Stmt, error) {
+	parseFuncBody = func() (*ast.FuncBody, error) {
 		open, err := expect(lexer.PunctLParen)
 		vararg := false
 		var params []*ast.Binding
@@ -995,7 +1024,7 @@ func Parser(in []lexer.Token) {
 			Body:   body,
 		}, nil
 	}
-	parseExprStatement := func() (ast.Stmt, error) {
+	parseExprStatement = func() (ast.Stmt, error) {
 		first, err := parseSuffixed()
 		if err != nil {
 			return nil, err
@@ -1004,7 +1033,7 @@ func Parser(in []lexer.Token) {
 		val, ok := first.(*ast.Ident)
 		which, exists := compoundOps[tok.Kind]
 		if ok && val.Name == "continue" && tok.Kind != lexer.OpAssign && tok.Kind != lexer.PunctComma && !exists {
-			return &ast.Continue{Span: first.Span}, nil
+			return &ast.Continue{Span: val.Span}, nil
 		}
 		if tok.Kind == lexer.OpAssign || tok.Kind == lexer.PunctComma {
 			var targets []ast.Expr = []ast.Expr{first}
@@ -1062,13 +1091,13 @@ func Parser(in []lexer.Token) {
 		}
 		switch first.(type) {
 		case *ast.Call, *ast.MethodCall:
-			return &ast.CallStmt{span: first.Span, Call: first}, nil
+			return &ast.CallStmt{Span: ast.Span{Start: first.Pos(), Stop: first.End()}, Call: first}, nil
 		default:
 			break
 		}
 		return nil, fmt.Errorf("expected a statement, got %s", first)
 	}
-	parseTable := func() (ast.Expr, error) {
+	parseTable = func() (ast.Expr, error) {
 		open, err := expect(lexer.PunctLBrace)
 		if err != nil {
 			return nil, err
@@ -1136,6 +1165,9 @@ func Parser(in []lexer.Token) {
 			}
 		}
 		c, err := expect(lexer.PunctRBrace)
+		if err != nil {
+			return nil, err
+		}
 		return &ast.Table{
 			Span: ast.Span{
 				Start: open.Pos,
@@ -1144,7 +1176,7 @@ func Parser(in []lexer.Token) {
 			Items: items,
 		}, nil
 	}
-	parseTernary := func() (ast.Expr, error) {
+	parseTernary = func() (ast.Expr, error) {
 		start, err := expect(lexer.KeywordIf)
 		if err != nil {
 			return nil, err
@@ -1153,10 +1185,17 @@ func Parser(in []lexer.Token) {
 		if err != nil {
 			return nil, err
 		}
+		_, err = expect(lexer.KeywordThen)
+		if err != nil {
+			return nil, err
+		}
 		then, err := parseExpr(0)
+		if err != nil {
+			return nil, err
+		}
 		var elseifs []*ast.ElseIfExpr
 		for {
-			if peek().Kind != lexer.KeywordElseIf {
+			if peek().Kind == lexer.KeywordElseIf {
 				tok := advance()
 				cond, err := parseExpr(0)
 				if err != nil {
@@ -1201,4 +1240,13 @@ func Parser(in []lexer.Token) {
 			Else:    elseval,
 		}, nil
 	}
+	block, err := parseBlock()
+	if err != nil {
+		return nil, err
+	}
+	// anything left over means a statement ended early, like the :upper() in "s":upper()
+	if _, err := expect(lexer.TokenEOF); err != nil {
+		return nil, err
+	}
+	return block, nil
 }
