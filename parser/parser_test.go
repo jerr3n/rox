@@ -11,6 +11,7 @@ import (
 
 	"github.com/jerr3n/rox/ast"
 	"github.com/jerr3n/rox/lexer"
+	rprint "github.com/jerr3n/rox/printer" // renamed: this file has its own printer type
 )
 
 // Each test parses one file in test/. For checkAST, test/NAME.luau is
@@ -401,6 +402,7 @@ func TestTables(t *testing.T)     { checkAST(t, "04_tables") }
 func TestFunctions(t *testing.T)  { checkAST(t, "05_functions") }
 func TestControl(t *testing.T)    { checkAST(t, "06_control") }
 func TestAssignment(t *testing.T) { checkAST(t, "07_assignment") }
+func TestFunctional(t *testing.T) { checkAST(t, "08_functional") }
 
 func TestErrUnclosedTable(t *testing.T)     { checkError(t, "err_unclosed_table") }
 func TestErrMissingEnd(t *testing.T)        { checkError(t, "err_missing_end") }
@@ -475,5 +477,47 @@ func TestStatementSpanText(t *testing.T) {
 		if got := in[s.Pos():s.End()]; got != src {
 			t.Errorf("%q: span covers %q", src, got)
 		}
+	}
+}
+
+// checkRoundTrip parses src, prints it with the printer, parses that output,
+// and requires both trees to be the same. printTree leaves out spans, so the
+// printer is free to change spacing and layout.
+func checkRoundTrip(t *testing.T, src string) {
+	t.Helper()
+	block, err := parse(t, src)
+	if err != nil {
+		t.Fatalf("parsing the input: %v\n%s", err, src)
+	}
+	want := printTree(block)
+
+	var out string
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("printer panicked: %v\ninput:\n%s", r, src)
+			}
+		}()
+		out = rprint.Printer(block, rprint.Config{Indent: "\t"})
+	}()
+
+	block2, err := parse(t, out)
+	if err != nil {
+		t.Fatalf("parsing the printer's output: %v\ninput:\n%s\noutput:\n%s", err, src, out)
+	}
+	if diff := diffLines(printTree(block2), want); diff != "" {
+		t.Errorf("tree changed after printing\ninput:\n%s\noutput:\n%s\n%s", src, out, diff)
+	}
+}
+
+func TestRoundTrip(t *testing.T) {
+	for _, src := range []string{
+		`print("hi")`,
+		`f(a, b, ...)`,
+		`t.x.y()`,
+		`obj:method(1, nil, true)`,
+		`t[k]("s")`,
+	} {
+		t.Run(src, func(t *testing.T) { checkRoundTrip(t, src) })
 	}
 }

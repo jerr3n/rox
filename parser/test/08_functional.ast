@@ -1,0 +1,454 @@
+Block
+  LocalFunc map
+    params: (list, f)
+    Block
+      Local
+        names: out
+        values:
+          Table
+      GenericFor i, v
+        in:
+          Call
+            Ident ipairs
+            args:
+              Ident list
+        Block
+          Assign
+            targets:
+              Index
+                Ident out
+                Ident i
+            values:
+              Call
+                Ident f
+                args:
+                  Ident v
+                  Ident i
+      Return
+        Ident out
+  LocalFunc filter
+    params: (list, pred)
+    Block
+      Local
+        names: out
+        values:
+          Table
+      GenericFor _, v
+        in:
+          Call
+            Ident ipairs
+            args:
+              Ident list
+        Block
+          If
+            Call
+              Ident pred
+              args:
+                Ident v
+            Block
+              CallStmt
+                Call
+                  Field .insert
+                    Ident table
+                  args:
+                    Ident out
+                    Ident v
+      Return
+        Ident out
+  LocalFunc reduce
+    params: (list, f, acc)
+    Block
+      GenericFor _, v
+        in:
+          Call
+            Ident ipairs
+            args:
+              Ident list
+        Block
+          Assign
+            targets:
+              Ident acc
+            values:
+              Call
+                Ident f
+                args:
+                  Ident acc
+                  Ident v
+      Return
+        Ident acc
+  LocalFunc compose
+    params: (...)
+    Block
+      Local
+        names: fns
+        values:
+          Table
+            positional
+              Vararg
+      Return
+        Func
+          params: (x)
+          Block
+            NumericFor i
+              start:
+                Unary #
+                  Ident fns
+              stop:
+                Number 1
+              step:
+                Unary -
+                  Number 1
+              Block
+                Assign
+                  targets:
+                    Ident x
+                  values:
+                    Call
+                      Index
+                        Ident fns
+                        Ident i
+                      args:
+                        Ident x
+            Return
+              Ident x
+  LocalFunc curry
+    params: (f)
+    Block
+      Return
+        Func
+          params: (a)
+          Block
+            Return
+              Func
+                params: (b)
+                Block
+                  Return
+                    Call
+                      Ident f
+                      args:
+                        Ident a
+                        Ident b
+  LocalFunc range
+    params: (lo, hi, step)
+    Block
+      Assign
+        targets:
+          Ident step
+        values:
+          Binary or
+            Ident step
+            Number 1
+      Local
+        names: out
+        values:
+          Table
+      NumericFor i
+        start:
+          Ident lo
+        stop:
+          Ident hi
+        step:
+          Ident step
+        Block
+          Assign
+            targets:
+              Index
+                Ident out
+                Binary +
+                  Unary #
+                    Ident out
+                  Number 1
+            values:
+              Ident i
+      Return
+        Ident out
+  LocalFunc fib
+    params: (n)
+    Block
+      Return
+        IfExpr
+          Binary <
+            Ident n
+            Number 2
+          Ident n
+          Else
+            Binary +
+              Call
+                Ident fib
+                args:
+                  Binary -
+                    Ident n
+                    Number 1
+              Call
+                Ident fib
+                args:
+                  Binary -
+                    Ident n
+                    Number 2
+  LocalFunc memoize
+    params: (f)
+    Block
+      Local
+        names: cache
+        values:
+          Call
+            Ident setmetatable
+            args:
+              Table
+              Table
+                named __mode =
+                  String "k"
+      Return
+        Func
+          params: (n)
+          Block
+            Local
+              names: hit
+              values:
+                Index
+                  Ident cache
+                  Ident n
+            If
+              Binary ==
+                Ident hit
+                Nil
+              Block
+                Assign
+                  targets:
+                    Ident hit
+                  values:
+                    Call
+                      Ident f
+                      args:
+                        Ident n
+                Assign
+                  targets:
+                    Index
+                      Ident cache
+                      Ident n
+                  values:
+                    Ident hit
+            Return
+              Ident hit
+  LocalFunc counter
+    params: (start)
+    Block
+      Local
+        names: n
+        values:
+          Binary or
+            Ident start
+            Number 0
+      Return
+        Table
+          named next =
+            Func
+              params: ()
+              Block
+                CompoundAssign +=
+                  Ident n
+                  Number 1
+                Return
+                  Ident n
+          named reset =
+            Func
+              params: ()
+              Block
+                Assign
+                  targets:
+                    Ident n
+                  values:
+                    Binary or
+                      Ident start
+                      Number 0
+  Local
+    names: add
+    values:
+      Call
+        Ident curry
+        args:
+          Func
+            params: (a, b)
+            Block
+              Return
+                Binary +
+                  Ident a
+                  Ident b
+  Local
+    names: mul
+    values:
+      Call
+        Ident curry
+        args:
+          Func
+            params: (a, b)
+            Block
+              Return
+                Binary *
+                  Ident a
+                  Ident b
+  Local
+    names: isEven
+    values:
+      Func
+        params: (x)
+        Block
+          Return
+            Binary ==
+              Binary %
+                Ident x
+                Number 2
+              Number 0
+  Local
+    names: square
+    values:
+      Func
+        params: (x)
+        Block
+          Return
+            Binary ^
+              Ident x
+              Number 2
+  Local
+    names: addThenDouble
+    values:
+      Call
+        Ident compose
+        args:
+          Call
+            Ident mul
+            args:
+              Number 2
+          Call
+            Ident add
+            args:
+              Number 10
+  Local
+    names: evens
+    values:
+      Call
+        Ident filter
+        args:
+          Call
+            Ident range
+            args:
+              Number 1
+              Number 20
+          Ident isEven
+  Local
+    names: squares
+    values:
+      Call
+        Ident map
+        args:
+          Ident evens
+          Ident square
+  Local
+    names: total
+    values:
+      Call
+        Ident reduce
+        args:
+          Ident squares
+          Func
+            params: (a, b)
+            Block
+              Return
+                Binary +
+                  Ident a
+                  Ident b
+          Number 0
+  Local
+    names: labels
+    values:
+      Call
+        Ident map
+        args:
+          Call
+            Ident range
+            args:
+              Number 0
+              Number 9
+          Func
+            params: (n, i)
+            Block
+              Return
+                Binary ..
+                  Call
+                    Ident tostring
+                    args:
+                      Ident i
+                  Binary ..
+                    String ": "
+                    Call
+                      Ident tostring
+                      args:
+                        Call
+                          Call
+                            Ident memoize
+                            args:
+                              Ident fib
+                          args:
+                            Ident n
+  Local
+    names: c
+    values:
+      Call
+        Ident counter
+        args:
+          Number 100
+  CallStmt
+    Call
+      Field .next
+        Ident c
+  CallStmt
+    Call
+      Field .next
+        Ident c
+  CallStmt
+    Call
+      Ident print
+      args:
+        Call
+          Ident addThenDouble
+          args:
+            Number 5
+        Ident total
+        Unary #
+          Ident labels
+        Call
+          Field .next
+            Ident c
+  CallStmt
+    Call
+      Ident print
+      args:
+        Call
+          Field .concat
+            Ident table
+          args:
+            Ident labels
+            String "\n"
+  CallStmt
+    Call
+      Ident print
+      args:
+        MethodCall :upper
+          Call
+            Ident reduce
+            args:
+              Table
+                positional
+                  String "a"
+                positional
+                  String "b"
+                positional
+                  String "c"
+              Func
+                params: (s, x)
+                Block
+                  Return
+                    Binary ..
+                      Ident s
+                      Ident x
+              String ""

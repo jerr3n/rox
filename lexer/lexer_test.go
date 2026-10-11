@@ -174,6 +174,7 @@ func TestNumbers(t *testing.T)     { checkTokens(t, "04_numbers") }
 func TestStrings(t *testing.T)     { checkTokens(t, "05_strings") }
 func TestComments(t *testing.T)    { checkTokens(t, "06_comments") }
 func TestProgram(t *testing.T)     { checkTokens(t, "07_program") }
+func TestFunctional(t *testing.T)  { checkTokens(t, "08_functional") }
 
 func TestErrUnterminatedString(t *testing.T)      { checkError(t, "err_unterminated_string") }
 func TestErrUnterminatedSingleQuote(t *testing.T) { checkError(t, "err_unterminated_single_quote") }

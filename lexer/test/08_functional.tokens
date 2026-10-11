@@ -1,0 +1,578 @@
+local
+function
+IDENT map
+(
+IDENT list
+,
+IDENT f
+)
+local
+IDENT out
+=
+{
+}
+for
+IDENT i
+,
+IDENT v
+in
+IDENT ipairs
+(
+IDENT list
+)
+do
+IDENT out
+[
+IDENT i
+]
+=
+IDENT f
+(
+IDENT v
+,
+IDENT i
+)
+end
+return
+IDENT out
+end
+local
+function
+IDENT filter
+(
+IDENT list
+,
+IDENT pred
+)
+local
+IDENT out
+=
+{
+}
+for
+IDENT _
+,
+IDENT v
+in
+IDENT ipairs
+(
+IDENT list
+)
+do
+if
+IDENT pred
+(
+IDENT v
+)
+then
+IDENT table
+.
+IDENT insert
+(
+IDENT out
+,
+IDENT v
+)
+end
+end
+return
+IDENT out
+end
+local
+function
+IDENT reduce
+(
+IDENT list
+,
+IDENT f
+,
+IDENT acc
+)
+for
+IDENT _
+,
+IDENT v
+in
+IDENT ipairs
+(
+IDENT list
+)
+do
+IDENT acc
+=
+IDENT f
+(
+IDENT acc
+,
+IDENT v
+)
+end
+return
+IDENT acc
+end
+local
+function
+IDENT compose
+(
+...
+)
+local
+IDENT fns
+=
+{
+...
+}
+return
+function
+(
+IDENT x
+)
+for
+IDENT i
+=
+#
+IDENT fns
+,
+NUMBER 1
+,
+-
+NUMBER 1
+do
+IDENT x
+=
+IDENT fns
+[
+IDENT i
+]
+(
+IDENT x
+)
+end
+return
+IDENT x
+end
+end
+local
+function
+IDENT curry
+(
+IDENT f
+)
+return
+function
+(
+IDENT a
+)
+return
+function
+(
+IDENT b
+)
+return
+IDENT f
+(
+IDENT a
+,
+IDENT b
+)
+end
+end
+end
+local
+function
+IDENT range
+(
+IDENT lo
+,
+IDENT hi
+,
+IDENT step
+)
+IDENT step
+=
+IDENT step
+or
+NUMBER 1
+local
+IDENT out
+=
+{
+}
+for
+IDENT i
+=
+IDENT lo
+,
+IDENT hi
+,
+IDENT step
+do
+IDENT out
+[
+#
+IDENT out
++
+NUMBER 1
+]
+=
+IDENT i
+end
+return
+IDENT out
+end
+local
+function
+IDENT fib
+(
+IDENT n
+)
+return
+if
+IDENT n
+<
+NUMBER 2
+then
+IDENT n
+else
+IDENT fib
+(
+IDENT n
+-
+NUMBER 1
+)
++
+IDENT fib
+(
+IDENT n
+-
+NUMBER 2
+)
+end
+local
+function
+IDENT memoize
+(
+IDENT f
+)
+local
+IDENT cache
+=
+IDENT setmetatable
+(
+{
+}
+,
+{
+IDENT __mode
+=
+STRING "\"k\""
+}
+)
+return
+function
+(
+IDENT n
+)
+local
+IDENT hit
+=
+IDENT cache
+[
+IDENT n
+]
+if
+IDENT hit
+==
+nil
+then
+IDENT hit
+=
+IDENT f
+(
+IDENT n
+)
+IDENT cache
+[
+IDENT n
+]
+=
+IDENT hit
+end
+return
+IDENT hit
+end
+end
+local
+function
+IDENT counter
+(
+IDENT start
+)
+local
+IDENT n
+=
+IDENT start
+or
+NUMBER 0
+return
+{
+IDENT next
+=
+function
+(
+)
+IDENT n
++=
+NUMBER 1
+return
+IDENT n
+end
+,
+IDENT reset
+=
+function
+(
+)
+IDENT n
+=
+IDENT start
+or
+NUMBER 0
+end
+,
+}
+end
+local
+IDENT add
+=
+IDENT curry
+(
+function
+(
+IDENT a
+,
+IDENT b
+)
+return
+IDENT a
++
+IDENT b
+end
+)
+local
+IDENT mul
+=
+IDENT curry
+(
+function
+(
+IDENT a
+,
+IDENT b
+)
+return
+IDENT a
+*
+IDENT b
+end
+)
+local
+IDENT isEven
+=
+function
+(
+IDENT x
+)
+return
+IDENT x
+%
+NUMBER 2
+==
+NUMBER 0
+end
+local
+IDENT square
+=
+function
+(
+IDENT x
+)
+return
+IDENT x
+^
+NUMBER 2
+end
+local
+IDENT addThenDouble
+=
+IDENT compose
+(
+IDENT mul
+(
+NUMBER 2
+)
+,
+IDENT add
+(
+NUMBER 10
+)
+)
+local
+IDENT evens
+=
+IDENT filter
+(
+IDENT range
+(
+NUMBER 1
+,
+NUMBER 20
+)
+,
+IDENT isEven
+)
+local
+IDENT squares
+=
+IDENT map
+(
+IDENT evens
+,
+IDENT square
+)
+local
+IDENT total
+=
+IDENT reduce
+(
+IDENT squares
+,
+function
+(
+IDENT a
+,
+IDENT b
+)
+return
+IDENT a
++
+IDENT b
+end
+,
+NUMBER 0
+)
+local
+IDENT labels
+=
+IDENT map
+(
+IDENT range
+(
+NUMBER 0
+,
+NUMBER 9
+)
+,
+function
+(
+IDENT n
+,
+IDENT i
+)
+return
+IDENT tostring
+(
+IDENT i
+)
+..
+STRING "\": \""
+..
+IDENT tostring
+(
+IDENT memoize
+(
+IDENT fib
+)
+(
+IDENT n
+)
+)
+end
+)
+local
+IDENT c
+=
+IDENT counter
+(
+NUMBER 100
+)
+IDENT c
+.
+IDENT next
+(
+)
+IDENT c
+.
+IDENT next
+(
+)
+IDENT print
+(
+IDENT addThenDouble
+(
+NUMBER 5
+)
+,
+IDENT total
+,
+#
+IDENT labels
+,
+IDENT c
+.
+IDENT next
+(
+)
+)
+IDENT print
+(
+IDENT table
+.
+IDENT concat
+(
+IDENT labels
+,
+STRING "\"\\n\""
+)
+)
+IDENT print
+(
+IDENT reduce
+(
+{
+STRING "\"a\""
+,
+STRING "\"b\""
+,
+STRING "\"c\""
+}
+,
+function
+(
+IDENT s
+,
+IDENT x
+)
+return
+IDENT s
+..
+IDENT x
+end
+,
+STRING "\"\""
+)
+:
+IDENT upper
+(
+)
+)
