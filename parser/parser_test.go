@@ -482,7 +482,7 @@ func TestStatementSpanText(t *testing.T) {
 
 // checkRoundTrip parses src, prints it with the printer, parses that output,
 // and requires both trees to be the same. printTree leaves out spans, so the
-// printer is free to change spacing and layout.
+// printer is free to change spacing and layout. Both modes are checked.
 func checkRoundTrip(t *testing.T, src string) {
 	t.Helper()
 	block, err := parse(t, src)
@@ -491,22 +491,24 @@ func checkRoundTrip(t *testing.T, src string) {
 	}
 	want := printTree(block)
 
-	var out string
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				t.Fatalf("printer panicked: %v\ninput:\n%s", r, src)
-			}
+	for _, cfg := range []rprint.Config{{Indent: "\t"}, {Minify: true}} {
+		var out string
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("printer panicked (minify=%v): %v\ninput:\n%s", cfg.Minify, r, src)
+				}
+			}()
+			out = rprint.Printer(block, cfg)
 		}()
-		out = rprint.Printer(block, rprint.Config{Indent: "\t"})
-	}()
 
-	block2, err := parse(t, out)
-	if err != nil {
-		t.Fatalf("parsing the printer's output: %v\ninput:\n%s\noutput:\n%s", err, src, out)
-	}
-	if diff := diffLines(printTree(block2), want); diff != "" {
-		t.Errorf("tree changed after printing\ninput:\n%s\noutput:\n%s\n%s", src, out, diff)
+		block2, err := parse(t, out)
+		if err != nil {
+			t.Fatalf("parsing the printer's output (minify=%v): %v\ninput:\n%s\noutput:\n%s", cfg.Minify, err, src, out)
+		}
+		if diff := diffLines(printTree(block2), want); diff != "" {
+			t.Errorf("tree changed after printing (minify=%v)\ninput:\n%s\noutput:\n%s\n%s", cfg.Minify, src, out, diff)
+		}
 	}
 }
 
@@ -517,7 +519,79 @@ func TestRoundTrip(t *testing.T) {
 		`t.x.y()`,
 		`obj:method(1, nil, true)`,
 		`t[k]("s")`,
+
+		// statements
+		`local x, y = 1, 2`,
+		`local z`,
+		`a, b.c, d[1] = 1, 2, 3`,
+		`x += 1 x ..= "s" x //= 2`,
+		`do print(1) end`,
+		`while x do break end`,
+		`repeat x -= 1 until x < 0`,
+		`if a then f() elseif b then g() else h() end`,
+		`for i = 1, 10 do continue end`,
+		`for i = 10, 1, -1 do end`,
+		`for k, v in pairs(t) do end`,
+		`local function f(a, ...) return a, ... end`,
+		`function a.b:c() return end`,
+
+		// precedence
+		`x = -(-a)`,
+		`x = - -a`,
+		`x = a - -b`,
+		`x = (a + b) * c`,
+		`x = a - (b - c)`,
+		`x = (a - b) - c`,
+		`x = 2 ^ 3 ^ 4`,
+		`x = (2 ^ 3) ^ 4`,
+		`x = -a ^ b`,
+		`x = (-a) ^ b`,
+		`x = a .. b .. c`,
+		`x = (a .. b) .. c`,
+		`x = not a == b`,
+		`x = not (a == b)`,
+		`x = a or b and c`,
+		`x = (a or b) and c`,
+		`x = #t + 1`,
+		`x = (if a then b else c) + 1`,
+		`x = if a then b elseif c then d else e`,
+
+		// tokens minify must keep apart
+		`x = 1 .. 2`,
+		`x = a .. .5`,
+		`x = a .. ...`,
+		`x = 0x1F and 1e3 or 1.5`,
+
+		// strings
+		`x = "a\"b\\c\nd\te\0f\127g"`,
+		`x = "\0011"`,
+
+		// tables and functions
+		`x = {}`,
+		`x = {1, 2, a = 3, [k] = 4}`,
+		`for i = #t, 1, -1 do end`,
+		`x = {1, 2, 3, 4, 5, 6}`,
+		`x = {f = function(a) return a end, {1}}`,
+		`f(function() return 1 end)`,
+
+		// the ambiguous-call guard
+		`local a = b; (f)()`,
+		`f(); (g).x = 1`,
+		`x = y; (z):m()`,
+		`(f)()`,
 	} {
 		t.Run(src, func(t *testing.T) { checkRoundTrip(t, src) })
+	}
+}
+
+// TestRoundTripFiles round-trips every parser test file.
+func TestRoundTripFiles(t *testing.T) {
+	files, err := filepath.Glob(filepath.Join("test", "[0-9]*.luau"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		name := strings.TrimSuffix(filepath.Base(f), ".luau")
+		t.Run(name, func(t *testing.T) { checkRoundTrip(t, readSource(t, name)) })
 	}
 }
