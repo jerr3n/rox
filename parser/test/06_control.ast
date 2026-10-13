@@ -26,30 +26,30 @@ Block
     Ident a
     Block
       CallStmt
-        Call
+        Call x
           Ident x
   If
     Ident a
     Block
       CallStmt
-        Call
+        Call x
           Ident x
     ElseIf
       Ident b
       Block
         CallStmt
-          Call
+          Call y
             Ident y
     ElseIf
       Ident c
       Block
         CallStmt
-          Call
+          Call z
             Ident z
     Else
       Block
         CallStmt
-          Call
+          Call w
             Ident w
   NumericFor i
     start:
@@ -58,7 +58,7 @@ Block
       Number 10
     Block
       CallStmt
-        Call
+        Call print
           Ident print
           args:
             Ident i
@@ -73,7 +73,7 @@ Block
     Block
   GenericFor k, v
     in:
-      Call
+      Call pairs
         Ident pairs
         args:
           Ident t

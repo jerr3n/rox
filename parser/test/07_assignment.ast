@@ -33,7 +33,7 @@ Block
       Field .y
         Ident other
     values:
-      Call
+      Call f
         Ident f
   CompoundAssign +=
     Ident x

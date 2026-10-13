@@ -11,11 +11,11 @@ import (
 
 	"github.com/jerr3n/rox/ast"
 	"github.com/jerr3n/rox/lexer"
-	rprint "github.com/jerr3n/rox/printer" // renamed: this file has its own printer type
+	"github.com/jerr3n/rox/printer"
 )
 
 // Each test parses one file in test/. For checkAST, test/NAME.luau is
-// compared against test/NAME.ast, which is the tree printed by printTree.
+// compared against test/NAME.ast, which is the tree printed by ast.Dump.
 // For checkError (the err_*.luau files) there is no .ast file; Parser only
 // has to return an error.
 //
@@ -56,262 +56,6 @@ func parse(t *testing.T, in string) (*ast.Block, error) {
 		t.Fatalf("Parser didn't finish within 1s (stuck in a loop?)")
 	}
 	return nil, nil
-}
-
-// ---------------------------------------------------------------------------
-// Tree printer
-//
-// Prints one node per line, with children indented under their parent:
-//
-//	Local
-//	  names: a, b
-//	  values:
-//	    Number 1
-//	    Binary +
-//	      Ident x
-//	      Number 2
-// ---------------------------------------------------------------------------
-
-var binaryNames = map[ast.BinaryOp]string{
-	ast.OpAdd: "+", ast.OpSub: "-", ast.OpMul: "*", ast.OpDiv: "/",
-	ast.OpFloorDiv: "//", ast.OpMod: "%", ast.OpPow: "^", ast.OpConcat: "..",
-	ast.OpEq: "==", ast.OpNe: "~=", ast.OpLt: "<", ast.OpLe: "<=",
-	ast.OpGt: ">", ast.OpGe: ">=", ast.OpAnd: "and", ast.OpOr: "or",
-}
-
-var unaryNames = map[ast.UnaryOp]string{
-	ast.OpNeg: "-", ast.OpNot: "not", ast.OpLen: "#",
-}
-
-var itemNames = map[ast.TableItemKind]string{
-	ast.ItemPositional: "positional", ast.ItemNamed: "named", ast.ItemKeyed: "keyed",
-}
-
-type printer struct {
-	b strings.Builder
-}
-
-func printTree(block *ast.Block) string {
-	var p printer
-	p.block(block, 0)
-	return p.b.String()
-}
-
-func (p *printer) line(depth int, format string, args ...any) {
-	p.b.WriteString(strings.Repeat("  ", depth))
-	fmt.Fprintf(&p.b, format, args...)
-	p.b.WriteByte('\n')
-}
-
-// labeled prints "label:" and then each expression under it.
-func (p *printer) labeled(depth int, label string, exprs []ast.Expr) {
-	if len(exprs) == 0 {
-		return
-	}
-	p.line(depth, "%s:", label)
-	for _, e := range exprs {
-		p.expr(e, depth+1)
-	}
-}
-
-func bindingNames(bs []*ast.Binding) string {
-	names := []string{}
-	for _, b := range bs {
-		if b == nil || b.Name == nil {
-			names = append(names, "<missing name>")
-			continue
-		}
-		names = append(names, b.Name.Name)
-	}
-	return strings.Join(names, ", ")
-}
-
-func (p *printer) block(b *ast.Block, depth int) {
-	if b == nil {
-		p.line(depth, "<nil block>")
-		return
-	}
-	p.line(depth, "Block")
-	for _, s := range b.Stmts {
-		p.stmt(s, depth+1)
-	}
-}
-
-func (p *printer) funcBody(f *ast.FuncBody, depth int) {
-	if f == nil {
-		p.line(depth, "<nil func body>")
-		return
-	}
-	params := bindingNames(f.Params)
-	if f.Vararg {
-		if params != "" {
-			params += ", "
-		}
-		params += "..."
-	}
-	p.line(depth, "params: (%s)", params)
-	p.block(f.Body, depth)
-}
-
-func (p *printer) stmt(s ast.Stmt, depth int) {
-	switch s := s.(type) {
-	case *ast.Local:
-		p.line(depth, "Local")
-		p.line(depth+1, "names: %s", bindingNames(s.Names))
-		p.labeled(depth+1, "values", s.Values)
-	case *ast.LocalFunc:
-		p.line(depth, "LocalFunc %s", s.Name.Name)
-		p.funcBody(s.Body, depth+1)
-	case *ast.FuncDecl:
-		path := []string{}
-		for _, id := range s.Name.Path {
-			path = append(path, id.Name)
-		}
-		name := strings.Join(path, ".")
-		if s.Name.Method != nil {
-			name += ":" + s.Name.Method.Name
-		}
-		p.line(depth, "FuncDecl %s", name)
-		p.funcBody(s.Body, depth+1)
-	case *ast.Assign:
-		p.line(depth, "Assign")
-		p.labeled(depth+1, "targets", s.Targets)
-		p.labeled(depth+1, "values", s.Values)
-	case *ast.CompoundAssign:
-		p.line(depth, "CompoundAssign %s=", binaryNames[s.Op])
-		p.expr(s.Target, depth+1)
-		p.expr(s.Value, depth+1)
-	case *ast.CallStmt:
-		p.line(depth, "CallStmt")
-		p.expr(s.Call, depth+1)
-	case *ast.Do:
-		p.line(depth, "Do")
-		p.block(s.Body, depth+1)
-	case *ast.While:
-		p.line(depth, "While")
-		p.expr(s.Cond, depth+1)
-		p.block(s.Body, depth+1)
-	case *ast.Repeat:
-		p.line(depth, "Repeat")
-		p.block(s.Body, depth+1)
-		p.line(depth+1, "until:")
-		p.expr(s.Cond, depth+2)
-	case *ast.If:
-		p.line(depth, "If")
-		p.expr(s.Cond, depth+1)
-		p.block(s.Then, depth+1)
-		for _, ei := range s.ElseIfs {
-			p.line(depth+1, "ElseIf")
-			p.expr(ei.Cond, depth+2)
-			p.block(ei.Body, depth+2)
-		}
-		if s.Else != nil {
-			p.line(depth+1, "Else")
-			p.block(s.Else, depth+2)
-		}
-	case *ast.NumericFor:
-		p.line(depth, "NumericFor %s", bindingNames([]*ast.Binding{s.Var}))
-		p.line(depth+1, "start:")
-		p.expr(s.Start, depth+2)
-		p.line(depth+1, "stop:")
-		p.expr(s.Stop, depth+2)
-		if s.Step != nil {
-			p.line(depth+1, "step:")
-			p.expr(s.Step, depth+2)
-		}
-		p.block(s.Body, depth+1)
-	case *ast.GenericFor:
-		p.line(depth, "GenericFor %s", bindingNames(s.Vars))
-		p.labeled(depth+1, "in", s.Exprs)
-		p.block(s.Body, depth+1)
-	case *ast.Return:
-		p.line(depth, "Return")
-		for _, v := range s.Values {
-			p.expr(v, depth+1)
-		}
-	case *ast.Break:
-		p.line(depth, "Break")
-	case *ast.Continue:
-		p.line(depth, "Continue")
-	case nil:
-		p.line(depth, "<nil stmt>")
-	default:
-		p.line(depth, "<unknown stmt %T>", s)
-	}
-}
-
-func (p *printer) expr(e ast.Expr, depth int) {
-	switch e := e.(type) {
-	case *ast.Nil:
-		p.line(depth, "Nil")
-	case *ast.Bool:
-		p.line(depth, "Bool %v", e.Value)
-	case *ast.Number:
-		p.line(depth, "Number %s", e.Raw)
-	case *ast.String:
-		p.line(depth, "String %q", e.Value)
-	case *ast.Vararg:
-		p.line(depth, "Vararg")
-	case *ast.Ident:
-		p.line(depth, "Ident %s", e.Name)
-	case *ast.Field:
-		p.line(depth, "Field .%s", e.Name.Name)
-		p.expr(e.X, depth+1)
-	case *ast.Index:
-		p.line(depth, "Index")
-		p.expr(e.X, depth+1)
-		p.expr(e.Key, depth+1)
-	case *ast.Call:
-		p.line(depth, "Call")
-		p.expr(e.Fn, depth+1)
-		p.labeled(depth+1, "args", e.Args)
-	case *ast.MethodCall:
-		p.line(depth, "MethodCall :%s", e.Method.Name)
-		p.expr(e.Recv, depth+1)
-		p.labeled(depth+1, "args", e.Args)
-	case *ast.Unary:
-		p.line(depth, "Unary %s", unaryNames[e.Op])
-		p.expr(e.X, depth+1)
-	case *ast.Binary:
-		p.line(depth, "Binary %s", binaryNames[e.Op])
-		p.expr(e.L, depth+1)
-		p.expr(e.R, depth+1)
-	case *ast.Paren:
-		p.line(depth, "Paren")
-		p.expr(e.X, depth+1)
-	case *ast.Func:
-		p.line(depth, "Func")
-		p.funcBody(e.Body, depth+1)
-	case *ast.Table:
-		p.line(depth, "Table")
-		for _, item := range e.Items {
-			switch item.Kind {
-			case ast.ItemNamed:
-				p.line(depth+1, "%s %s =", itemNames[item.Kind], item.Name.Name)
-			default:
-				p.line(depth+1, "%s", itemNames[item.Kind])
-			}
-			if item.Kind == ast.ItemKeyed {
-				p.expr(item.Key, depth+2)
-			}
-			p.expr(item.Value, depth+2)
-		}
-	case *ast.IfExpr:
-		p.line(depth, "IfExpr")
-		p.expr(e.Cond, depth+1)
-		p.expr(e.Then, depth+1)
-		for _, ei := range e.ElseIfs {
-			p.line(depth+1, "ElseIf")
-			p.expr(ei.Cond, depth+2)
-			p.expr(ei.Then, depth+2)
-		}
-		p.line(depth+1, "Else")
-		p.expr(e.Else, depth+2)
-	case nil:
-		p.line(depth, "<nil expr>")
-	default:
-		p.line(depth, "<unknown expr %T>", e)
-	}
 }
 
 // ---------------------------------------------------------------------------
@@ -364,7 +108,7 @@ func checkAST(t *testing.T, name string) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	got := printTree(block)
+	got := ast.Dump(block)
 	t.Logf("tree for %s.luau:\n%s", name, got)
 
 	astPath := filepath.Join("test", name+".ast")
@@ -389,7 +133,7 @@ func checkError(t *testing.T, name string) {
 	t.Helper()
 	block, err := parse(t, readSource(t, name))
 	if err == nil {
-		t.Errorf("want an error, got none; tree:\n%s", printTree(block))
+		t.Errorf("want an error, got none; tree:\n%s", ast.Dump(block))
 		return
 	}
 	t.Logf("error (as expected): %v", err)
@@ -481,7 +225,7 @@ func TestStatementSpanText(t *testing.T) {
 }
 
 // checkRoundTrip parses src, prints it with the printer, parses that output,
-// and requires both trees to be the same. printTree leaves out spans, so the
+// and requires both trees to be the same. ast.Dump leaves out spans, so the
 // printer is free to change spacing and layout. Both modes are checked.
 func checkRoundTrip(t *testing.T, src string) {
 	t.Helper()
@@ -489,9 +233,9 @@ func checkRoundTrip(t *testing.T, src string) {
 	if err != nil {
 		t.Fatalf("parsing the input: %v\n%s", err, src)
 	}
-	want := printTree(block)
+	want := ast.Dump(block)
 
-	for _, cfg := range []rprint.Config{{Indent: "\t"}, {Minify: true}} {
+	for _, cfg := range []printer.Config{{Indent: "\t"}, {Minify: true}} {
 		var out string
 		func() {
 			defer func() {
@@ -499,14 +243,14 @@ func checkRoundTrip(t *testing.T, src string) {
 					t.Fatalf("printer panicked (minify=%v): %v\ninput:\n%s", cfg.Minify, r, src)
 				}
 			}()
-			out = rprint.Printer(block, cfg)
+			out = printer.Printer(block, cfg)
 		}()
 
 		block2, err := parse(t, out)
 		if err != nil {
 			t.Fatalf("parsing the printer's output (minify=%v): %v\ninput:\n%s\noutput:\n%s", cfg.Minify, err, src, out)
 		}
-		if diff := diffLines(printTree(block2), want); diff != "" {
+		if diff := diffLines(ast.Dump(block2), want); diff != "" {
 			t.Errorf("tree changed after printing (minify=%v)\ninput:\n%s\noutput:\n%s\n%s", cfg.Minify, src, out, diff)
 		}
 	}

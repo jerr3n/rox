@@ -3,7 +3,7 @@ Block
     params: (name)
     Block
       CallStmt
-        Call
+        Call print
           Ident print
           args:
             Binary ..
@@ -38,12 +38,12 @@ Block
         params: (f, ...)
         Block
           Return
-            Call
+            Call f
               Ident f
               args:
                 Vararg
   CallStmt
-    Call
+    Call print
       Ident print
       args:
         Func

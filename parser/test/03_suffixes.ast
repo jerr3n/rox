@@ -27,10 +27,10 @@ Block
             Ident i
             Number 1
   CallStmt
-    Call
+    Call print
       Ident print
   CallStmt
-    Call
+    Call print
       Ident print
       args:
         Number 1
@@ -39,32 +39,32 @@ Block
           Ident x
           Number 3
   CallStmt
-    Call
+    Call print
       Ident print
       args:
-        Call
+        Call f
           Ident f
           args:
-            Call
+            Call g
               Ident g
               args:
                 Ident x
   CallStmt
-    MethodCall :method
+    MethodCall obj:method
       Ident obj
       args:
         Number 1
   CallStmt
-    MethodCall :method
+    MethodCall obj.child:method
       Field .child
         Ident obj
   CallStmt
-    Call
+    Call require
       Ident require
       args:
         String "module"
   CallStmt
-    Call
+    Call setup
       Ident setup
       args:
         Table

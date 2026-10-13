@@ -8,7 +8,7 @@ Block
           Table
       GenericFor i, v
         in:
-          Call
+          Call ipairs
             Ident ipairs
             args:
               Ident list
@@ -19,7 +19,7 @@ Block
                 Ident out
                 Ident i
             values:
-              Call
+              Call f
                 Ident f
                 args:
                   Ident v
@@ -35,19 +35,19 @@ Block
           Table
       GenericFor _, v
         in:
-          Call
+          Call ipairs
             Ident ipairs
             args:
               Ident list
         Block
           If
-            Call
+            Call pred
               Ident pred
               args:
                 Ident v
             Block
               CallStmt
-                Call
+                Call table.insert
                   Field .insert
                     Ident table
                   args:
@@ -60,7 +60,7 @@ Block
     Block
       GenericFor _, v
         in:
-          Call
+          Call ipairs
             Ident ipairs
             args:
               Ident list
@@ -69,7 +69,7 @@ Block
             targets:
               Ident acc
             values:
-              Call
+              Call f
                 Ident f
                 args:
                   Ident acc
@@ -123,7 +123,7 @@ Block
                 params: (b)
                 Block
                   Return
-                    Call
+                    Call f
                       Ident f
                       args:
                         Ident a
@@ -173,13 +173,13 @@ Block
           Ident n
           Else
             Binary +
-              Call
+              Call fib
                 Ident fib
                 args:
                   Binary -
                     Ident n
                     Number 1
-              Call
+              Call fib
                 Ident fib
                 args:
                   Binary -
@@ -191,7 +191,7 @@ Block
       Local
         names: cache
         values:
-          Call
+          Call setmetatable
             Ident setmetatable
             args:
               Table
@@ -217,7 +217,7 @@ Block
                   targets:
                     Ident hit
                   values:
-                    Call
+                    Call f
                       Ident f
                       args:
                         Ident n
@@ -264,7 +264,7 @@ Block
   Local
     names: add
     values:
-      Call
+      Call curry
         Ident curry
         args:
           Func
@@ -277,7 +277,7 @@ Block
   Local
     names: mul
     values:
-      Call
+      Call curry
         Ident curry
         args:
           Func
@@ -312,24 +312,24 @@ Block
   Local
     names: addThenDouble
     values:
-      Call
+      Call compose
         Ident compose
         args:
-          Call
+          Call mul
             Ident mul
             args:
               Number 2
-          Call
+          Call add
             Ident add
             args:
               Number 10
   Local
     names: evens
     values:
-      Call
+      Call filter
         Ident filter
         args:
-          Call
+          Call range
             Ident range
             args:
               Number 1
@@ -338,7 +338,7 @@ Block
   Local
     names: squares
     values:
-      Call
+      Call map
         Ident map
         args:
           Ident evens
@@ -346,7 +346,7 @@ Block
   Local
     names: total
     values:
-      Call
+      Call reduce
         Ident reduce
         args:
           Ident squares
@@ -361,10 +361,10 @@ Block
   Local
     names: labels
     values:
-      Call
+      Call map
         Ident map
         args:
-          Call
+          Call range
             Ident range
             args:
               Number 0
@@ -374,17 +374,17 @@ Block
             Block
               Return
                 Binary ..
-                  Call
+                  Call tostring
                     Ident tostring
                     args:
                       Ident i
                   Binary ..
                     String ": "
-                    Call
+                    Call tostring
                       Ident tostring
                       args:
                         Call
-                          Call
+                          Call memoize
                             Ident memoize
                             args:
                               Ident fib
@@ -393,48 +393,48 @@ Block
   Local
     names: c
     values:
-      Call
+      Call counter
         Ident counter
         args:
           Number 100
   CallStmt
-    Call
+    Call c.next
       Field .next
         Ident c
   CallStmt
-    Call
+    Call c.next
       Field .next
         Ident c
   CallStmt
-    Call
+    Call print
       Ident print
       args:
-        Call
+        Call addThenDouble
           Ident addThenDouble
           args:
             Number 5
         Ident total
         Unary #
           Ident labels
-        Call
+        Call c.next
           Field .next
             Ident c
   CallStmt
-    Call
+    Call print
       Ident print
       args:
-        Call
+        Call table.concat
           Field .concat
             Ident table
           args:
             Ident labels
             String "\n"
   CallStmt
-    Call
+    Call print
       Ident print
       args:
         MethodCall :upper
-          Call
+          Call reduce
             Ident reduce
             args:
               Table
