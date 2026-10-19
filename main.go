@@ -14,7 +14,7 @@ func main() {
 	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	logger, err := config.Build()
 	if err != nil {
-		log.Fatalf("zap failed to start, error %w", err)
+		log.Fatalf("zap failed to start, error %v", err)
 	}
 	data, err := os.ReadFile("main.luau")
 	if err != nil {
@@ -23,9 +23,7 @@ func main() {
 	logger.Info("read main.luau", zap.Int("length", len(data)))
 	lexed, err := lexer.Lexer(string(data))
 	if err != nil {
-		if err != nil {
-			logger.Fatal("failed to lex file", zap.Error(err))
-		}
+		logger.Fatal("failed to lex file", zap.Error(err))
 	}
 	logger.Info("lexed main.luau", zap.Int("toks", len(*lexed)))
 }
