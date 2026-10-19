@@ -9,8 +9,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/jerr3n/rox/ast"
-	"github.com/jerr3n/rox/generic"
 	"github.com/jerr3n/rox/lexer"
+	"github.com/jerr3n/rox/util"
 )
 
 // binaryOp is how tightly a binary operator binds. An operator only joins
@@ -105,7 +105,7 @@ func Parser(in []lexer.Token) (*ast.Block, error) {
 	var parseName func() (*ast.Ident, error)
 	var parseLiteral func() (ast.Expr, error)
 	var parsePrimary func() (ast.Expr, error)
-	var parseArgs func() ([]ast.Expr, generic.Pos, error)
+	var parseArgs func() ([]ast.Expr, util.Pos, error)
 	var parseSuffixed func() (ast.Expr, error)
 	var parseBindingList func() ([]*ast.Binding, error)
 	var blockEnd func(kind lexer.TokenKind) bool
@@ -362,7 +362,7 @@ func Parser(in []lexer.Token) (*ast.Block, error) {
 		}
 		return nil, fmt.Errorf("expected a name or (, got %q", tok.Text)
 	}
-	parseArgs = func() ([]ast.Expr, generic.Pos, error) {
+	parseArgs = func() ([]ast.Expr, util.Pos, error) {
 		tok := peek()
 		if tok.Kind == lexer.TokenString {
 			// f"str" is f("str")
@@ -562,7 +562,7 @@ func Parser(in []lexer.Token) (*ast.Block, error) {
 		return &ast.Binding{
 			Span: ast.Span{
 				Start: name.Pos(),
-				Stop:  generic.Pos(prev),
+				Stop:  util.Pos(prev),
 			},
 			Name: name,
 		}, nil
@@ -613,7 +613,7 @@ func Parser(in []lexer.Token) (*ast.Block, error) {
 			accept(lexer.PunctSemicolon)
 		}
 		return &ast.Block{
-			Span:  ast.Span{Start: start, Stop: generic.Pos(prev)},
+			Span:  ast.Span{Start: start, Stop: util.Pos(prev)},
 			Stmts: stmts,
 		}, nil
 	}
@@ -633,7 +633,7 @@ func Parser(in []lexer.Token) (*ast.Block, error) {
 		return &ast.Return{
 			Span: ast.Span{
 				Start: start.Pos,
-				Stop:  generic.Pos(prev),
+				Stop:  util.Pos(prev),
 			},
 			Values: vals,
 		}, nil
@@ -675,7 +675,7 @@ func Parser(in []lexer.Token) (*ast.Block, error) {
 		return &ast.Local{
 			Span: ast.Span{
 				Start: start.Pos,
-				Stop:  generic.Pos(prev),
+				Stop:  util.Pos(prev),
 			},
 			Names:  names, //??????
 			Values: vals,
@@ -878,7 +878,7 @@ func Parser(in []lexer.Token) (*ast.Block, error) {
 			elseifs = append(elseifs, &ast.ElseIf{
 				Span: ast.Span{
 					Start: tok.Pos,
-					Stop:  generic.Pos(prev),
+					Stop:  util.Pos(prev),
 				},
 				Cond: cond,
 				Body: body,
@@ -934,7 +934,7 @@ func Parser(in []lexer.Token) (*ast.Block, error) {
 		name := ast.FuncName{
 			Span: ast.Span{
 				Start: first.Pos(),
-				Stop:  generic.Pos(prev),
+				Stop:  util.Pos(prev),
 			},
 			Path:   path,
 			Method: method,
@@ -1033,7 +1033,7 @@ func Parser(in []lexer.Token) (*ast.Block, error) {
 			return &ast.Assign{
 				Span: ast.Span{
 					Start: first.Pos(),
-					Stop:  generic.Pos(prev),
+					Stop:  util.Pos(prev),
 				},
 				Targets: targets,
 				Values:  vals, // my coding style is so inconsistent
@@ -1122,7 +1122,7 @@ func Parser(in []lexer.Token) (*ast.Block, error) {
 			}
 			item.Span = ast.Span{
 				Start: tok.Pos,
-				Stop:  generic.Pos(prev),
+				Stop:  util.Pos(prev),
 			}
 			items = append(items, &item)
 			if !accept(lexer.PunctComma) && !accept(lexer.PunctSemicolon) {

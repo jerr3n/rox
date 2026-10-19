@@ -1,6 +1,8 @@
 package ast
 
-import "github.com/jerr3n/rox/generic"
+import (
+	"github.com/jerr3n/rox/util"
+)
 
 // ---------------------------------------------------------------------------
 // Positions
@@ -13,12 +15,12 @@ type Pos int
 
 // Span is embedded in every node to give it Pos() and End().
 type Span struct {
-	Start generic.Pos // first byte of the node
-	Stop  generic.Pos // one past the last byte
+	Start util.Pos // first byte of the node
+	Stop  util.Pos // one past the last byte
 }
 
-func (s Span) Pos() generic.Pos { return generic.Pos(s.Start) }
-func (s Span) End() generic.Pos { return generic.Pos(s.Stop) }
+func (s Span) Pos() util.Pos { return util.Pos(s.Start) }
+func (s Span) End() util.Pos { return util.Pos(s.Stop) }
 
 // ---------------------------------------------------------------------------
 // Node categories
@@ -26,8 +28,8 @@ func (s Span) End() generic.Pos { return generic.Pos(s.Stop) }
 
 // Node is anything in the tree.
 type Node interface {
-	Pos() generic.Pos
-	End() generic.Pos
+	Pos() util.Pos
+	End() util.Pos
 }
 
 // Expr is anything that produces a value.

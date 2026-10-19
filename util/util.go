@@ -1,7 +1,11 @@
 package util
 
-import "slices"
+type Pos int
+type LevelFault int
 
-func IsIn(target string, searchable ...string) bool {
-	return slices.Contains(searchable, target)
-}
+const (
+	NoFault         LevelFault = -1
+	LexerLevelFault LevelFault = iota
+	ParserLevelFault
+	ReadLevelFault
+)

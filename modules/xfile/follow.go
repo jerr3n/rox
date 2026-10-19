@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 
 	"github.com/jerr3n/rox/ast"
-	"github.com/jerr3n/rox/generic"
 	"github.com/jerr3n/rox/lexer"
 	"github.com/jerr3n/rox/parser"
+	"github.com/jerr3n/rox/util"
 )
 
 type File struct {
@@ -15,7 +15,7 @@ type File struct {
 	Block    *ast.Block // nil if Err is set
 	Requires []Require
 	Err      error // reading, lexing or parsing failed
-	Fault    generic.LevelFault
+	Fault    util.LevelFault
 }
 
 // Follow TODO: add detonation if any element in []File has an error
@@ -39,16 +39,16 @@ func (sm *Sourcemap) Follow(entry string) []*File {
 			if err == nil {
 				block, err = parser.Parser(*lexed)
 				if err != nil {
-					f.Fault = generic.ParserLevelFault
+					f.Fault = util.ParserLevelFault
 				} else {
-					f.Fault = generic.NoFault
+					f.Fault = util.NoFault
 					f.Block = block
 				}
 			} else {
-				f.Fault = generic.LexerLevelFault
+				f.Fault = util.LexerLevelFault
 			}
 		} else {
-			f.Fault = generic.ReadLevelFault
+			f.Fault = util.ReadLevelFault
 		}
 		f.Err = err
 		if f.Err != nil {

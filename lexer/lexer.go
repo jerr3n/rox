@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/jerr3n/rox/generic"
+	"github.com/jerr3n/rox/util"
 )
 
 // TokenKind says what sort of token something is. Every family
@@ -273,9 +273,9 @@ type Pos int
 type Token struct {
 	Kind TokenKind
 	// TODO: make `Text` *string
-	Text string      // the exact source text, e.g. "sum", "10", "\"hi\"", "+="
-	Pos  generic.Pos // first byte of the token
-	End  generic.Pos // one past the last byte, so in[Pos:End] == Text
+	Text string   // the exact source text, e.g. "sum", "10", "\"hi\"", "+="
+	Pos  util.Pos // first byte of the token
+	End  util.Pos // one past the last byte, so in[Pos:End] == Text
 	// NewlineBefore is true if a newline was skipped between the previous
 	// token and this one, including one inside a comment. The parser needs
 	// it for the f\n(x) ambiguity.
@@ -542,16 +542,16 @@ func Lexer(in string) (*[]Token, error) {
 		// every case above appends exactly one token, so fill in where it is
 		// here instead of in each case
 		tk := &tokens[len(tokens)-1]
-		tk.Pos = generic.Pos(start)
-		tk.End = generic.Pos(pos)
+		tk.Pos = util.Pos(start)
+		tk.End = util.Pos(pos)
 		tk.NewlineBefore = strings.IndexByte(in[skipStart:start], '\n') >= 0
 	}
 	// EOF sits at the very end of the source, so the parser always has a
 	// token to look at, even when the input stops mid-statement
 	tokens = append(tokens, Token{
 		Kind: TokenEOF,
-		Pos:  generic.Pos(len(in)),
-		End:  generic.Pos(len(in)),
+		Pos:  util.Pos(len(in)),
+		End:  util.Pos(len(in)),
 	})
 	return &tokens, err
 }
