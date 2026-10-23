@@ -4,7 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"maps"
+	"path/filepath"
 	"slices"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/jerr3n/rox/modules/xfile"
 	"github.com/jerr3n/rox/util"
@@ -116,10 +120,35 @@ func main() {
 	if err != nil {
 		logger.Fatal("error in visit", zap.Error(err), zap.Strings("cycle", cycle))
 	}
+	names := map[string]string{}
 	for _, t := range output {
-		logger.Debug("output", zap.String("path", t.Path))
+		path := t.Path
+		logger.Debug("output", zap.String("path", path))
+		ext := filepath.Ext(path)
+		res := strings.TrimSuffix(path, ext)
+		var sanitized strings.Builder
+		for _, c := range res {
+			if c <= utf8.RuneSelf && util.IsWordChar(byte(c)) {
+				sanitized.WriteString(string(c))
+			} else {
+				sanitized.WriteString("_") // do not write your codebase primarily in anything that does not use a latin character set/english character set
+			}
+		}
+		prefixed := fmt.Sprintf("__mod_%s", sanitized.String())
+		vals := slices.Collect(maps.Values(names))
+		if slices.Contains(vals, prefixed) {
+			count := 1
+			for _, v := range vals {
+				if strings.HasPrefix(v, prefixed) { // this will not shoot you in the foot unless you make it
+					count++
+				} // if theres 2 functions in your code called something like 3dmakearray and 3dappendarray i dont feel bad for you
+			}
+			names[path] = fmt.Sprintf("%s_instance%d", prefixed, count)
+		} else {
+			names[path] = prefixed
+		}
 	}
-	
+
 	//spew.Dump(files)
 
 }

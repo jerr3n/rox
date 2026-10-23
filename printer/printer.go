@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/jerr3n/rox/ast"
+	"github.com/jerr3n/rox/util"
 )
 
 // Config picks the output style.
@@ -54,11 +55,6 @@ const unaryPrec = 8
 
 // maxPower means "can't be pulled apart" in power.
 const maxPower = 100
-
-// isWordChar reports whether c is a letter, digit or '_'.
-func isWordChar(c byte) bool {
-	return c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
-}
 
 // quote turns a decoded string back into a double-quoted Luau literal.
 func quote(s string) string {
@@ -280,7 +276,7 @@ func Printer(file *ast.Block, cfg Config) string {
 	// or into a comment.
 	needSpace = func(a, b byte) bool {
 		switch {
-		case isWordChar(a) && isWordChar(b): // local x, 1 and
+		case util.IsWordChar(a) && util.IsWordChar(b): // local x, 1 and
 			return true
 		case a == '-' && b == '-': // - -x would start a comment
 			return true
