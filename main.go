@@ -5,12 +5,17 @@ import (
 	"fmt"
 	"log"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/jerr3n/rox/ast"
+	"github.com/jerr3n/rox/lexer"
 	"github.com/jerr3n/rox/modules/xfile"
+	"github.com/jerr3n/rox/parser"
+	"github.com/jerr3n/rox/printer"
 	"github.com/jerr3n/rox/util"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -49,15 +54,53 @@ func main() {
 	//logger.Info("parsed main.luau")
 	//info := scope.Resolve(parsed)
 	sm := xfile.Sourcemap{}
-	files := sm.Follow("main.luau")
+	entry := filepath.Clean("main.luau")
+	seen := map[string]bool{entry: true}
+	queue := []string{entry}
+	var files []*xfile.File
+	for len(queue) > 0 {
+		f := &xfile.File{Path: queue[0]}
+		queue = queue[1:]
+		files = append(files, f)
+		src, err := os.ReadFile(f.Path)
+		if err != nil {
+			f.Fault, f.Err = util.ReadLevelFault, err
+			logger.Error("read fail", zap.String("path", f.Path), zap.Error(err))
+			continue
+		}
+		logger.Debug("read ok", zap.String("path", f.Path))
+		lexed, err := lexer.Lexer(string(src))
+		if err != nil {
+			f.Fault, f.Err = util.LexerLevelFault, err
+			logger.Error("lex fail", zap.String("path", f.Path), zap.Error(err))
+			continue
+		}
+		logger.Debug("lex ok", zap.String("path", f.Path))
+		block, err := parser.Parser(*lexed)
+		if err != nil {
+			f.Fault, f.Err = util.ParserLevelFault, err
+			logger.Error("parse fail", zap.String("path", f.Path), zap.Error(err))
+			continue
+		}
+		logger.Debug("parse ok", zap.String("path", f.Path))
+		f.Fault = util.NoFault
+		f.Block = block
+		f.Requires = sm.Requires(f.Block, f.Path)
+		for _, r := range f.Requires {
+			if r.Path != "" && !seen[r.Path] {
+				seen[r.Path] = true
+				queue = append(queue, r.Path)
+			}
+		}
+	}
+	// each broken file was already logged above, so collect them all and stop once
+	var broken []string
 	for _, file := range files {
 		if file.Fault > util.NoFault {
-			logger.Fatal("failed to parse all",
-				zap.Int("fault level", int(file.Fault)),
-				zap.Error(file.Err),
-			)
+			broken = append(broken, file.Path)
+			continue
 		}
-		logger.Debug("file okay", zap.String("file", file.Path))
+		logger.Debug("file ok", zap.String("file", file.Path))
 		for _, require := range file.Requires {
 			if require.Path == "" {
 				logger.Fatal("blank require path",
@@ -65,11 +108,14 @@ func main() {
 					zap.String("require", fmt.Sprintf("%p", &require)),
 				)
 			}
-			logger.Debug("require okay",
+			logger.Debug("require ok",
 				zap.String("path", file.Path),
 				zap.String("require", require.Path),
 			)
 		}
+	}
+	if len(broken) > 0 {
+		logger.Fatal("failed to parse all", zap.Strings("broken", broken))
 	}
 	lookup := map[string]*xfile.File{}
 	state := map[string]VisitStatus{}
@@ -148,7 +194,50 @@ func main() {
 			names[path] = prefixed
 		}
 	}
-
-	//spew.Dump(files)
+	var bundle []ast.Stmt
+	for _, t := range output {
+		m := map[*ast.Call]string{}
+		for _, r := range t.Requires {
+			m[r.Call] = names[r.Path]
+		}
+		ast.RewriteBlock(t.Block, func(expr ast.Expr) ast.Expr {
+			call, ok := expr.(*ast.Call)
+			if !ok {
+				return expr
+			}
+			name, inMap := m[call]
+			if inMap {
+				return &ast.Ident{
+					Name: name,
+				}
+			}
+			return expr
+		}, func(stmt ast.Stmt) []ast.Stmt {
+			callstmt, ok := stmt.(*ast.CallStmt)
+			if !ok {
+				return []ast.Stmt{stmt}
+			}
+			_, ok2 := callstmt.Call.(*ast.Ident)
+			if ok2 {
+				return nil
+			}
+			return []ast.Stmt{stmt}
+		})
+		// the entry file goes in as-is, at the bottom
+		if t.Path == files[0].Path {
+			bundle = append(bundle, t.Block.Stmts...)
+			continue
+		}
+		// local __mod_x = (function() <t.Block> end)()
+		wrapped := &ast.Local{
+			Names: []*ast.Binding{{Name: &ast.Ident{Name: names[t.Path]}}},
+			Values: []ast.Expr{&ast.Call{
+				Fn: &ast.Paren{X: &ast.Func{Body: &ast.FuncBody{Body: t.Block}}},
+			}},
+		}
+		bundle = append(bundle, wrapped)
+	}
+	// zap logs to stderr, so stdout is only the bundle
+	fmt.Print(printer.Printer(&ast.Block{Stmts: bundle}, printer.Config{Indent: "\t"}))
 
 }

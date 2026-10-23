@@ -18,7 +18,11 @@ type File struct {
 	Fault    util.LevelFault
 }
 
-// Follow TODO: add detonation if any element in []File has an error
+// Follow reads, lexes and parses entry and every file it requires, directly or
+// not, breadth first. A file that fails is kept, with Fault and Err set.
+//
+// Deprecated: main.go follows requires itself now. Follow is only kept for
+// TestFollow.
 func (sm *Sourcemap) Follow(entry string) []*File {
 	entry = filepath.Clean(entry)
 	seen := map[string]bool{entry: true}
