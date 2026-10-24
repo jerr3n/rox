@@ -6,6 +6,7 @@ import (
 
 	"github.com/jerr3n/rox/ast"
 	"github.com/jerr3n/rox/util"
+	"go.uber.org/zap"
 )
 
 // Config picks the output style.
@@ -161,8 +162,16 @@ func fitsOnOneLine(t *ast.Table) bool {
 	return true
 }
 
-// Printer turns a block back into Luau source.
-func Printer(file *ast.Block, cfg Config) string {
+// Printer turns a block back into Luau source. logger may be nil.
+func Printer(file *ast.Block, cfg Config, logger *zap.Logger) string {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	stmts := 0
+	if file != nil {
+		stmts = len(file.Stmts)
+	}
+	logger.Debug("print start", zap.Int("stmts", stmts), zap.Bool("minify", cfg.Minify))
 	var out strings.Builder // the text so far
 	depth := 0              // current indent level
 	lineStart := true       // true right after a newline; the next write emits the indent first
@@ -345,6 +354,7 @@ func Printer(file *ast.Block, cfg Config) string {
 		case *ast.Continue:
 			continueStmt(s)
 		default:
+			logger.Error("unknown statement", zap.String("type", fmt.Sprintf("%T", s)))
 			panic(fmt.Sprintf("printer: unknown statement %T", s))
 		}
 	}
@@ -535,6 +545,7 @@ func Printer(file *ast.Block, cfg Config) string {
 		case *ast.Interp:
 			interp(e)
 		default:
+			logger.Error("unknown expression", zap.String("type", fmt.Sprintf("%T", e)))
 			panic(fmt.Sprintf("printer: unknown expression %T", e))
 		}
 	}
@@ -683,5 +694,6 @@ func Printer(file *ast.Block, cfg Config) string {
 	}
 
 	blockStmts(file)
+	logger.Debug("print done", zap.Int("bytes", out.Len()))
 	return out.String()
 }

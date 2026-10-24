@@ -21,8 +21,8 @@ type File struct {
 // Follow reads, lexes and parses entry and every file it requires, directly or
 // not, breadth first. A file that fails is kept, with Fault and Err set.
 //
-// Deprecated: main.go follows requires itself now. Follow is only kept for
-// TestFollow.
+// Deprecated: use bundling.Load, which also logs and collects errors. Follow
+// is only kept for TestFollow.
 func (sm *Sourcemap) Follow(entry string) []*File {
 	entry = filepath.Clean(entry)
 	seen := map[string]bool{entry: true}
@@ -39,9 +39,9 @@ func (sm *Sourcemap) Follow(entry string) []*File {
 		var block *ast.Block
 		src, err := os.ReadFile(f.Path)
 		if err == nil {
-			lexed, err = lexer.Lexer(string(src))
+			lexed, err = lexer.Lexer(string(src), nil)
 			if err == nil {
-				block, err = parser.Parser(*lexed)
+				block, err = parser.Parser(*lexed, nil)
 				if err != nil {
 					f.Fault = util.ParserLevelFault
 				} else {

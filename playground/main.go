@@ -46,12 +46,12 @@ func main() {
 			fmt.Println(err)
 			continue
 		}
-		toks, err := lexer.Lexer(string(src))
+		toks, err := lexer.Lexer(string(src), nil)
 		if err != nil {
 			fmt.Printf("%s: lex error: %v\n", path, err)
 			continue
 		}
-		block, err := parser.Parser(*toks)
+		block, err := parser.Parser(*toks, nil)
 		if err != nil {
 			fmt.Printf("%s: parse error: %v\n", path, err)
 			continue

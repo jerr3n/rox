@@ -11,10 +11,10 @@ import (
 
 func TestEmpty(t *testing.T) {
 	cfg := Config{Indent: "\t"}
-	if got := Printer(&ast.Block{}, cfg); got != "" {
+	if got := Printer(&ast.Block{}, cfg, nil); got != "" {
 		t.Errorf("empty block: got %q, want \"\"", got)
 	}
-	if got := Printer(nil, cfg); got != "" {
+	if got := Printer(nil, cfg, nil); got != "" {
 		t.Errorf("nil block: got %q, want \"\"", got)
 	}
 }

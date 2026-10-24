@@ -36,7 +36,7 @@ func lex(t *testing.T, in string) ([]Token, error) {
 				crashed <- r
 			}
 		}()
-		toks, err := Lexer(in)
+		toks, err := Lexer(in, nil)
 		var list []Token
 		if toks != nil {
 			list = *toks

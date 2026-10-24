@@ -115,11 +115,11 @@ func TestDuplicateChild(t *testing.T) {
 
 func parse(t *testing.T, code string) *ast.Block {
 	t.Helper()
-	lex, err := lexer.Lexer(code)
+	lex, err := lexer.Lexer(code, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	block, err := parser.Parser(*lex)
+	block, err := parser.Parser(*lex, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

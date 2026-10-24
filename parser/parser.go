@@ -11,6 +11,7 @@ import (
 	"github.com/jerr3n/rox/ast"
 	"github.com/jerr3n/rox/lexer"
 	"github.com/jerr3n/rox/util"
+	"go.uber.org/zap"
 )
 
 // binaryOp is how tightly a binary operator binds. An operator only joins
@@ -77,7 +78,13 @@ func isAssignable(target ast.Expr) bool {
 	}
 }
 
-func Parser(in []lexer.Token) (*ast.Block, error) {
+// Parser builds a block from tokens, as returned by lexer.Lexer. It stops at
+// the first error and logs it with the token it stopped on. logger may be nil.
+func Parser(in []lexer.Token, logger *zap.Logger) (*ast.Block, error) {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	logger.Debug("parse start", zap.Int("tokens", len(in)))
 	pos := 0
 	// prev TODO: generic.Pos() prev
 	prev := 0
@@ -1201,13 +1208,27 @@ func Parser(in []lexer.Token) (*ast.Block, error) {
 			Else:    elseval,
 		}, nil
 	}
+	// fail logs err with the token the parser stopped on, since the errors
+	// themselves don't say where they are
+	fail := func(err error) {
+		tok := peek()
+		logger.Error("parse error",
+			zap.Int("pos", int(tok.Pos)),
+			zap.Stringer("kind", tok.Kind),
+			zap.String("token", tok.Text),
+			zap.Error(err),
+		)
+	}
 	block, err := parseBlock()
 	if err != nil {
+		fail(err)
 		return nil, err
 	}
 	// anything left over means a statement ended early, like the :upper() in "s":upper()
 	if _, err := expect(lexer.TokenEOF); err != nil {
+		fail(err)
 		return nil, err
 	}
+	logger.Debug("parse done", zap.Int("stmts", len(block.Stmts)))
 	return block, nil
 }

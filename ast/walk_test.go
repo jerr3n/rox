@@ -17,11 +17,11 @@ end
 local r = math.random
 local s = mymath.random(1)`
 
-	lex, err := lexer.Lexer(code)
+	lex, err := lexer.Lexer(code, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	block, err := parser.Parser(*lex)
+	block, err := parser.Parser(*lex, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,11 +49,11 @@ func TestInspectSkipsChildren(t *testing.T) {
 	code := `local f = function() return math.random() end
 local x = math.random()`
 
-	lex, err := lexer.Lexer(code)
+	lex, err := lexer.Lexer(code, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	block, err := parser.Parser(*lex)
+	block, err := parser.Parser(*lex, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

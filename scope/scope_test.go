@@ -13,11 +13,11 @@ import (
 // in source order, so a test can say "the third x" as ids[2].
 func resolve(t *testing.T, code string) (*Info, []*ast.Ident) {
 	t.Helper()
-	lex, err := lexer.Lexer(code)
+	lex, err := lexer.Lexer(code, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	block, err := parser.Parser(*lex)
+	block, err := parser.Parser(*lex, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

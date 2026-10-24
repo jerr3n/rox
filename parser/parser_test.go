@@ -28,7 +28,7 @@ var update = flag.Bool("update", false, "rewrite test/*.ast from the parser's ou
 // failure instead of crashing or freezing the whole test run.
 func parse(t *testing.T, in string) (*ast.Block, error) {
 	t.Helper()
-	toks, err := lexer.Lexer(in)
+	toks, err := lexer.Lexer(in, nil)
 	if err != nil {
 		t.Fatalf("lexer error (fix the test file, not the parser): %v", err)
 	}
@@ -44,7 +44,7 @@ func parse(t *testing.T, in string) (*ast.Block, error) {
 				crashed <- r
 			}
 		}()
-		block, err := Parser(*toks)
+		block, err := Parser(*toks, nil)
 		done <- result{block, err}
 	}()
 	select {
@@ -243,7 +243,7 @@ func checkRoundTrip(t *testing.T, src string) {
 					t.Fatalf("printer panicked (minify=%v): %v\ninput:\n%s", cfg.Minify, r, src)
 				}
 			}()
-			out = printer.Printer(block, cfg)
+			out = printer.Printer(block, cfg, nil)
 		}()
 
 		block2, err := parse(t, out)

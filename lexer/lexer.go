@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	"github.com/jerr3n/rox/util"
+	"go.uber.org/zap"
 )
 
 // TokenKind says what sort of token something is. Every family
@@ -299,10 +300,22 @@ end
 END
 */
 
-func Lexer(in string) (*[]Token, error) {
+// Lexer splits in into tokens, ending with EOF. It keeps going after an
+// error, logs every one it finds, and returns the last. logger may be nil.
+func Lexer(in string, logger *zap.Logger) (*[]Token, error) {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	logger.Debug("lex start", zap.Int("bytes", len(in)))
 	pos := 0
 	tokens := []Token{}
 	var err error = nil
+
+	// fail records e as the error to return and logs it with where it starts
+	fail := func(at int, e error) {
+		err = e
+		logger.Error("lex error", zap.Int("pos", at), zap.Error(e))
+	}
 
 	peek := func(n int) rune {
 		if pos+n >= len(in) {
@@ -364,11 +377,12 @@ func Lexer(in string) (*[]Token, error) {
 				pos++
 
 			case peek(0) == '-' && peek(1) == '-':
+				commentStart := pos
 				pos += 2
 				if lvl := longLevel(); lvl >= 0 {
 					// --[[ long comment ]], which can span lines
 					if !skipLong(lvl) {
-						err = errors.New("unterminated long comment")
+						fail(commentStart, errors.New("unterminated long comment"))
 					}
 				} else {
 					// short comment: runs to the end of the line. This also
@@ -481,7 +495,7 @@ func Lexer(in string) (*[]Token, error) {
 			if peek(0) == cur {
 				pos++
 			} else {
-				err = errors.New("unterminated string")
+				fail(start, errors.New("unterminated string"))
 			}
 			tokens = append(tokens, Token{
 				Kind: TokenString,
@@ -491,7 +505,7 @@ func Lexer(in string) (*[]Token, error) {
 		case cur == '[' && longLevel() >= 0:
 			// [[long string]] or [==[long string]==], no escapes inside
 			if !skipLong(longLevel()) {
-				err = errors.New("unterminated long string")
+				fail(start, errors.New("unterminated long string"))
 			}
 			tokens = append(tokens, Token{
 				Kind: TokenString,
@@ -531,7 +545,7 @@ func Lexer(in string) (*[]Token, error) {
 			}
 			// not something Luau knows. Keep it as an INVALID token and step
 			// past it, otherwise we'd look at the same byte forever.
-			err = fmt.Errorf("unknown character %q", in[pos])
+			fail(pos, fmt.Errorf("unknown character %q", in[pos]))
 			tokens = append(tokens, Token{
 				Kind: TokenInvalid,
 				Text: in[pos : pos+1],
@@ -553,5 +567,6 @@ func Lexer(in string) (*[]Token, error) {
 		Pos:  util.Pos(len(in)),
 		End:  util.Pos(len(in)),
 	})
+	logger.Debug("lex done", zap.Int("tokens", len(tokens)), zap.Bool("ok", err == nil))
 	return &tokens, err
 }
