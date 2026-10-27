@@ -19,6 +19,8 @@ package ast
 //
 // f may change the node it is given before returning, e.g. replace entries in
 // a *Block's Stmts. Inspect then walks the new children, not the old ones.
+
+// Inspect visits each node in a tree, calls f(n) on it, if f(n) returns false, breaks inspect, otherwise continue on true return. returns if n is nil
 func Inspect(n Node, f func(Node) bool) {
 	if n == nil || !f(n) {
 		return

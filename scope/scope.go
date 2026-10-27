@@ -31,6 +31,21 @@ type Symbol struct {
 	Captured bool // used from inside a function other than Func
 }
 
+// Rename changes the name of s at its declaration and at every use. Symbols
+// without a declaration (Self, Global) are left alone.
+func (s *Symbol) Rename(name string) {
+	if s == nil || s.Decl == nil {
+		return
+	}
+	s.Decl.Name = name
+	for _, target := range [][]*ast.Ident{s.Reads, s.Writes} { // 2 birds are no longer with us
+		for _, v := range target {
+			v.Name = name
+		}
+	}
+	s.Name = name
+}
+
 // ---------------------------------------------------------------------------
 // Scopes
 // ---------------------------------------------------------------------------

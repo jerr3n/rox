@@ -32,8 +32,6 @@ func CanHoist(in *ast.Block) bool {
 	return returns == 1 && !vararg
 }
 
-// wrapper reports whether stmt is `local N = (function() BODY end)()` with
-// BODY safe to splice in its place. It returns N's symbol and BODY.
 func wrapper(stmt ast.Stmt, info *scope.Info) (name *scope.Symbol, body *ast.Block, ok bool) {
 	local, localOk := stmt.(*ast.Local)
 	if !localOk || len(local.Names) != 1 || len(local.Values) != 1 {
@@ -68,14 +66,14 @@ func wrapper(stmt ast.Stmt, info *scope.Info) (name *scope.Symbol, body *ast.Blo
 	return sym, fb.Body, true
 }
 
-func deconflict(ix *index, body *ast.Block) {
-	for _, sym := range topLevelDecls(body, ix.info) {
-		if ix.isFree(sym.Name, map[*scope.Symbol]bool{
+func deconflict(ix *scope.Index, body *ast.Block) {
+	for _, sym := range topLevelDecls(body, ix.Info) {
+		if ix.IsFree(sym.Name, map[*scope.Symbol]bool{
 			sym: true,
 		}) {
-			ix.taken[sym.Name] = true
+			ix.Take(sym.Name)
 		} else {
-			rename(sym, ix.freshName(sym.Name))
+			sym.Rename(ix.FreshName(sym.Name))
 		}
 	}
 }
@@ -98,15 +96,15 @@ func bindReturn(body *ast.Block, name string) {
 }
 
 func Unwrap(block *ast.Block) *ast.Block {
-	ix := NewIndex(block)
+	ix := scope.NewIndex(block)
 	i := 0
 	for i < len(block.Stmts) {
-		sym, body, ok := wrapper(block.Stmts[i], ix.info)
+		sym, body, ok := wrapper(block.Stmts[i], ix.Info)
 		if !ok {
 			i++
 			continue
 		}
-		if !ix.isFree(sym.Name, map[*scope.Symbol]bool{sym: true}) {
+		if !ix.IsFree(sym.Name, map[*scope.Symbol]bool{sym: true}) {
 			i++
 			continue
 		}
@@ -118,7 +116,26 @@ func Unwrap(block *ast.Block) *ast.Block {
 		out = append(out, block.Stmts[i+1:]...)
 		block.Stmts = out
 		i += len(body.Stmts)
-		ix = NewIndex(block)
+		ix = scope.NewIndex(block)
 	}
 	return block
+}
+
+func topLevelDecls(block *ast.Block, info *scope.Info) []*scope.Symbol {
+	var syms []*scope.Symbol
+	for _, s := range block.Stmts {
+		switch s := s.(type) {
+		case *ast.Local:
+			for _, v := range s.Names {
+				sym := info.Symbols[v.Name]
+				syms = append(syms, sym)
+			}
+		case *ast.LocalFunc:
+			sym := info.Symbols[s.Name]
+			syms = append(syms, sym)
+		default:
+			continue
+		}
+	}
+	return syms
 }

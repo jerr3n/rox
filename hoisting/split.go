@@ -82,23 +82,23 @@ func readsOK(block *ast.Block, sym *scope.Symbol, info *scope.Info, assigns map[
 }
 
 func splitOnce(block *ast.Block) bool {
-	ix := NewIndex(block)
+	ix := scope.NewIndex(block)
 	for i, stmt := range block.Stmts {
-		sym, ok := emptyTableDecl(stmt, ix.info)
+		sym, ok := emptyTableDecl(stmt, ix.Info)
 		if !ok {
 			continue
 		}
-		assigns, targets, last, ok := fieldAssigns(block, i, sym, ix.info)
+		assigns, targets, last, ok := fieldAssigns(block, i, sym, ix.Info)
 		if !ok {
 			continue
 		}
-		if !readsOK(block, sym, ix.info, assigns, targets, last) {
+		if !readsOK(block, sym, ix.Info, assigns, targets, last) {
 			continue
 		}
 		fresh := map[string]string{}
 		for j := i + 1; j <= last; j++ {
 			name := block.Stmts[j].(*ast.Assign).Targets[0].(*ast.Field).Name.Name
-			fresh[name] = ix.freshName(name)
+			fresh[name] = ix.FreshName(name)
 		}
 		for j := i + 1; j <= last; j++ {
 			a := block.Stmts[j].(*ast.Assign)
@@ -117,7 +117,7 @@ func splitOnce(block *ast.Block) bool {
 			if !idOk {
 				return expr
 			}
-			if ix.info.Symbols[id] != sym {
+			if ix.Info.Symbols[id] != sym {
 				return expr
 			}
 			return &ast.Ident{

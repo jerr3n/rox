@@ -11,7 +11,7 @@ import (
 
 	"github.com/jerr3n/rox/ast"
 	"github.com/jerr3n/rox/lexer"
-	"github.com/jerr3n/rox/modules/xfile"
+	"github.com/jerr3n/rox/xfile"
 	"github.com/jerr3n/rox/parser"
 	"github.com/jerr3n/rox/printer"
 	"github.com/jerr3n/rox/scope"
@@ -48,8 +48,9 @@ func (e *CycleError) Error() string {
 // ---------------------------------------------------------------------------
 
 // Bundle reads entry and every file it requires, and returns them as one
-// Luau source. logger may be nil.
-func Bundle(sm *xfile.Sourcemap, entry string, logger *zap.Logger) (string, error) {
+// Luau source. Each pass runs on the bundled tree, in order, before it's
+// printed. logger may be nil.
+func Bundle(sm *xfile.Sourcemap, entry string, logger *zap.Logger, passes ...func(*ast.Block) *ast.Block) (string, error) {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -65,6 +66,9 @@ func Bundle(sm *xfile.Sourcemap, entry string, logger *zap.Logger) (string, erro
 		logger.Debug("output", zap.String("path", f.Path))
 	}
 	block := Emit(ordered, Names(ordered), Resolve(ordered))
+	for _, pass := range passes {
+		block = pass(block)
+	}
 	return printer.Printer(block, printer.Config{Indent: "\t"}, logger), nil
 }
 

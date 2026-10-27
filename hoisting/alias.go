@@ -26,7 +26,7 @@ func alias(stmt ast.Stmt, info *scope.Info) (x, y *scope.Symbol, ok bool) {
 	ok = true
 	return
 }
-func chooseName(ix *index, group map[*scope.Symbol]bool) (string, bool) {
+func chooseName(ix *scope.Index, group map[*scope.Symbol]bool) (string, bool) {
 	counts := map[string]int{}
 	for s := range group {
 		counts[s.Name]++
@@ -35,8 +35,7 @@ func chooseName(ix *index, group map[*scope.Symbol]bool) (string, bool) {
 	for k := range counts {
 		candidates = append(candidates, k)
 	}
-	// readable names first, then the most common, then alphabetical so the
-	// result doesn't depend on map order
+
 	slices.SortFunc(candidates, func(a, b string) int {
 		return cmp.Or(
 			cmp.Compare(modRank(a), modRank(b)),
@@ -45,15 +44,14 @@ func chooseName(ix *index, group map[*scope.Symbol]bool) (string, bool) {
 		)
 	})
 	for _, c := range candidates {
-		if ix.isFree(c, group) {
-			ix.taken[c] = true
+		if ix.IsFree(c, group) {
+			ix.Take(c)
 			return c, true
 		}
 	}
 	return "", false
 }
 
-// modRank is 1 for the __mod_ names bundling.Names makes, 0 for the rest.
 func modRank(name string) int {
 	if strings.HasPrefix(name, "__mod_") {
 		return 1
@@ -61,12 +59,8 @@ func modRank(name string) int {
 	return 0
 }
 
-// inlineOnce merges each group of aliases (`local x = y`, plus every other
-// alias of y) into one binding and deletes the alias statements. A y that is
-// itself an alias waits for the next round. It reports whether it changed
-// anything.
 func inlineOnce(block *ast.Block) bool {
-	ix := NewIndex(block)
+	ix := scope.NewIndex(block)
 	type found struct {
 		stmt ast.Stmt
 		x, y *scope.Symbol
@@ -74,7 +68,7 @@ func inlineOnce(block *ast.Block) bool {
 	var aliases []found
 	ast.Inspect(block, func(node ast.Node) bool {
 		if stmt, ok := node.(ast.Stmt); ok {
-			if x, y, ok := alias(stmt, ix.info); ok {
+			if x, y, ok := alias(stmt, ix.Info); ok {
 				aliases = append(aliases, found{
 					stmt: stmt,
 					x:    x,
@@ -85,8 +79,6 @@ func inlineOnce(block *ast.Block) bool {
 		return true
 	})
 
-	// group by y, keeping the order the y's first appeared so renames don't
-	// depend on map order
 	isX := map[*scope.Symbol]bool{}
 	groups := map[*scope.Symbol]map[*scope.Symbol]bool{}
 	stmts := map[*scope.Symbol][]ast.Stmt{}
@@ -111,14 +103,13 @@ func inlineOnce(block *ast.Block) bool {
 			continue
 		}
 		for s := range groups[y] {
-			rename(s, name)
+			s.Rename(name)
 		}
 		for _, st := range stmts[y] {
 			del[st] = true
 		}
 	}
 
-	// each alias is now `local name = name`
 	ast.RewriteBlock(block, nil, func(stmt ast.Stmt) []ast.Stmt {
 		if del[stmt] {
 			return nil

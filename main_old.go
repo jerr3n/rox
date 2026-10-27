@@ -6,7 +6,7 @@ package main
 //
 //	"github.com/davecgh/go-spew/spew"
 //	"github.com/jerr3n/rox/ast"
-//	"github.com/jerr3n/rox/modules/xfile"
+//	"github.com/jerr3n/rox/xfile"
 //)
 //
 //const entry = "main.luau"
