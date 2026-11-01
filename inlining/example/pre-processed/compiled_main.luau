@@ -15,35 +15,9 @@ for numeratorCoefficient = 1, 2400 do
 			end
 		end
 		local z_2 = (t_2 - floor_result) * Tau
-		local sum_result
 		do
 			local a_2 = 0
 			local b_2 = 10
-			local f_2 = function(j_2)
-				local pow_result
-				do
-					local x_2 = -1
-					local n_7 = j_2
-					pow_result = x_2 ^ n_7
-				end
-				local pow_result_2
-				do
-					local x_3 = z_2
-					local n_8 = 2 * j_2 + 1
-					pow_result_2 = x_3 ^ n_8
-				end
-				local factorial_result
-				do
-					local n_9 = 2 * j_2 + 1
-					assert(n_9 >= 0 and n_9 % 1 == 0, "n must be a non-negative integer")
-					local r_4 = 1
-					for i_4 = 1, n_9 do
-						r_4 = r_4 * i_4
-					end
-					factorial_result = r_4
-				end
-				return pow_result * pow_result_2 / factorial_result
-			end
 			local r_3 = 0
 			for i_3 = a_2, b_2 do
 				local f_result
@@ -75,7 +49,6 @@ for numeratorCoefficient = 1, 2400 do
 				end
 				r_3 += f_result
 			end
-			sum_result = r_3
 		end
 	end
 end

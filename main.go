@@ -11,6 +11,7 @@ import (
 	"github.com/jerr3n/rox/bundling"
 	"github.com/jerr3n/rox/hoisting"
 	"github.com/jerr3n/rox/inlining"
+	"github.com/jerr3n/rox/simplify"
 	"github.com/jerr3n/rox/xfile"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -54,7 +55,7 @@ func main() {
 		passes = append(passes, hoisting.Unwrap, hoisting.InlineAliases, hoisting.SplitTables)
 		prefix = "hoist_"
 		if *inline {
-			passes = append(passes, inlining.Inline)
+			passes = append(passes, inlining.Inline, simplify.RemoveDead)
 			prefix = "compiled_"
 		}
 	}
